@@ -44,6 +44,8 @@ modules.builtin
 /System.map
 /Module.markers
 /Module.symvers
+/boot.img
+storage0
 
 #
 # git files that we don't want to ignore even it they are dot-files
