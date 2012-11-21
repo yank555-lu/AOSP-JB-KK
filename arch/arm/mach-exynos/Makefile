@@ -319,3 +319,5 @@ obj-$(CONFIG_CORESIGHT_ETM) += coresight.o coresight-etb.o coresight-tpiu.o core
 
 # for audio platform data driver
 obj-$(CONFIG_EXYNOS_SOUND_PLATFORM_DATA)	+= exynos_sound_platform_data.o
+
+obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o

@@ -1804,3 +1804,10 @@ config CORESIGHT_ETM_DEFAULT_ENABLE
 	help
 	  Turns on ETM tracing by default. Otherwise, tracing is
 	  disabled by default but can be enabled by other means.
+
+config FORCE_FAST_CHARGE
+	bool "Force AC charge mode at will"
+	default y
+	help
+	  A simple sysfs interface to force adapters that
+	  are detected as USB to charge as AC.
