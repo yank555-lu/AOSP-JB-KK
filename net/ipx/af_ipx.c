@@ -1349,7 +1349,7 @@ out:
 	return rc;
 }
 
-static struct proto ipx_proto = {
+static struct proto ipx_proto_struct = {
 	.name	  = "IPX",
 	.owner	  = THIS_MODULE,
 	.obj_size = sizeof(struct ipx_sock),
@@ -1374,7 +1374,7 @@ static int ipx_create(struct net *net, struct socket *sock, int protocol,
 		goto out;
 
 	rc = -ENOMEM;
-	sk = sk_alloc(net, PF_IPX, GFP_KERNEL, &ipx_proto);
+	sk = sk_alloc(net, PF_IPX, GFP_KERNEL, &ipx_proto_struct);
 	if (!sk)
 		goto out;
 
@@ -2017,7 +2017,7 @@ static const char ipx_snap_err_msg[] __initconst =
 
 static int __init ipx_init(void)
 {
-	int rc = proto_register(&ipx_proto, 1);
+	int rc = proto_register(&ipx_proto_struct, 1);
 
 	if (rc != 0)
 		goto out;
@@ -2082,7 +2082,7 @@ static void __exit ipx_proto_finito(void)
 		pEII_datalink = NULL;
 	}
 
-	proto_unregister(&ipx_proto);
+	proto_unregister(&ipx_proto_struct);
 	sock_unregister(ipx_family_ops.family);
 }
 
