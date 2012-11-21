@@ -3411,6 +3411,7 @@
 #define  FDIA_PHASE_SYNC_SHIFT_EN	18
 #define FDI_PHASE_SYNC_OVR(pipe) (1<<(FDIA_PHASE_SYNC_SHIFT_OVR - ((pipe) * 2)))
 #define FDI_PHASE_SYNC_EN(pipe) (1<<(FDIA_PHASE_SYNC_SHIFT_EN - ((pipe) * 2)))
+
 #define SOUTH_CHICKEN2		0xc2004
 #define  DPLS_EDP_PPS_FIX_DIS	(1<<0)
 
