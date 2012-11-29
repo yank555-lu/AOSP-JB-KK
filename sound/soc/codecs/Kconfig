@@ -388,4 +388,11 @@ config SND_SOC_WM2000
 config SND_SOC_WM9090
 	tristate
 
+config SOUNDLEVEL_MOD
+  bool "Soundlevel Mod by Yank555.lu"
+  default y
+  help
+    A simple sysfs interface to override output
+    sound levels for speaker and headphones.
+
 source "sound/soc/codecs/mc1n2/Kconfig"

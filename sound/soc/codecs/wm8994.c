@@ -40,6 +40,10 @@
 #include "wm8994.h"
 #include "wm_hubs.h"
 
+#ifdef CONFIG_SOUNDLEVEL_MOD
+#include <linux/soundlevel.h>
+#endif
+
 #define WM1811_JACKDET_MODE_NONE  0x0000
 #define WM1811_JACKDET_MODE_JACK  0x0100
 #define WM1811_JACKDET_MODE_MIC   0x0080
@@ -47,6 +51,12 @@
 
 #define WM8994_NUM_DRC 3
 #define WM8994_NUM_EQ  3
+
+#ifdef CONFIG_SOUNDLEVEL_MOD
+int speaker_level    = SPEAKER_LEVEL_DEFAULT;    /* Start using default value */
+int headphones_level = HEADPHONES_LEVEL_DEFAULT; /* Start using default value */
+struct snd_soc_codec *soundlevel_codec; /* Pointer to codec structure for soundlevel mod */
+#endif
 
 static int wm8994_drc_base[] = {
 	WM8994_AIF1_DRC1_1,
@@ -193,12 +203,56 @@ static int wm8994_volatile(struct snd_soc_codec *codec, unsigned int reg)
 	}
 }
 
-static int wm8994_write(struct snd_soc_codec *codec, unsigned int reg,
+int wm8994_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
 	int ret;
 
 	BUG_ON(reg > WM8994_MAX_REGISTER);
+
+#ifdef CONFIG_SOUNDLEVEL_MOD
+	/* If soundlevel override for speaker is active, apply the override value */
+	if (speaker == SPEAKER_OVERRIDE && (reg == WM8994_SPEAKER_VOLUME_LEFT || reg == WM8994_SPEAKER_VOLUME_RIGHT)) {
+
+		switch (reg) {
+
+			case WM8994_SPEAKER_VOLUME_LEFT:
+				{
+					value = (unsigned int) (value & ~WM8994_SPKOUTL_VOL_MASK) | speaker_level;
+					break;
+				}
+
+			case WM8994_SPEAKER_VOLUME_RIGHT:
+				{
+					value = (unsigned int) (value & ~WM8994_SPKOUTR_VOL_MASK) | speaker_level;
+					break;
+				}
+
+		}
+
+	}
+
+	/* If soundlevel override for headphones is active, apply the override value */
+	if (headphones == HEADPHONES_OVERRIDE && (reg == WM8994_LEFT_OUTPUT_VOLUME || reg == WM8994_RIGHT_OUTPUT_VOLUME)) {
+
+		switch (reg) {
+
+			case WM8994_LEFT_OUTPUT_VOLUME:
+				{
+					value = (unsigned int) (value & ~WM8994_HPOUT1L_VOL_MASK) | headphones_level;
+					break;
+				}
+
+			case WM8994_RIGHT_OUTPUT_VOLUME:
+				{
+					value = (unsigned int) (value & ~WM8994_HPOUT1R_VOL_MASK) | headphones_level;
+					break;
+				}
+
+		}
+
+	}
+#endif
 
 	if (!wm8994_volatile(codec, reg)) {
 		ret = snd_soc_cache_write(codec, reg, value);
@@ -210,7 +264,7 @@ static int wm8994_write(struct snd_soc_codec *codec, unsigned int reg,
 	return wm8994_reg_write(codec->control_data, reg, value);
 }
 
-static unsigned int wm8994_read(struct snd_soc_codec *codec,
+unsigned int wm8994_read(struct snd_soc_codec *codec,
 				unsigned int reg)
 {
 	unsigned int val;
@@ -3786,6 +3840,10 @@ static int wm8994_codec_probe(struct snd_soc_codec *codec)
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret, i;
 
+#ifdef CONFIG_SOUNDLEVEL_MOD
+	/* Keep a copy of the codec pointer, needed to force volume setting when sysfs values are modified */
+	soundlevel_codec = codec;
+#endif
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
 	control = codec->control_data;
 
