@@ -1350,4 +1350,7 @@ static inline bool blk_needs_flush_plug(struct task_struct *tsk)
 
 #endif /* CONFIG_BLOCK */
 
+int kblockd_schedule_delayed_work(struct request_queue *q,
+			struct delayed_work *dwork, unsigned long delay);
+
 #endif
