@@ -935,7 +935,7 @@ static const struct memdev {
 #endif
 #ifdef CONFIG_EXYNOS_MEM
 	/* Preliminary fix for exynos-mem exploit (for more details, see http://forum.xda-developers.com/showthread.php?p=35560095) */
-	[14] = {"exynos-mem", S_IRUSR, &exynos_mem_fops},
+//	[14] = {"exynos-mem", S_IRUSR, &exynos_mem_fops},
 #endif
 };
 
