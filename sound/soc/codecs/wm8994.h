@@ -163,9 +163,4 @@ struct wm8994_priv {
 	const struct firmware *enh_eq;
 };
 
-#ifdef CONFIG_SOUNDLEVEL_MOD
-extern int wm8994_write(struct snd_soc_codec *codec, unsigned int reg, unsigned int value);
-unsigned int wm8994_read(struct snd_soc_codec *codec, unsigned int reg);
-#endif
-
 #endif
