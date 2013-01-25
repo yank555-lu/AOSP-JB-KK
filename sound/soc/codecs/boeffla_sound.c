@@ -1,7 +1,7 @@
 /*
- * Author: andip71, 22.01.2013
+ * Author: andip71, 23.01.2013
  *
- * Version 1.4.4
+ * Version 1.4.5
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    sound implementation,
@@ -112,6 +112,8 @@ static void set_mic_mode(void);
 static unsigned int get_mic_mode(int reg_index);
 static unsigned int get_mic_mode_for_hook(int reg_index, unsigned int value);
 
+static void reset_boeffla_sound(void);
+
 
 /*****************************************/
 // Boeffla sound hook functions for
@@ -129,6 +131,17 @@ void Boeffla_sound_hook_wm8994_pcm_probe(struct snd_soc_codec *codec_pointer)
 
 	// Print debug info
 	printk("Boeffla-sound: codec pointer received\n");
+
+	// Initialize boeffla sound master switch finally
+	boeffla_sound = BOEFFLA_SOUND_DEFAULT;
+
+	// If boeffla sound is enabled during driver start, reset to default configuration	
+	if (boeffla_sound == ON)
+	{
+		reset_boeffla_sound();
+		printk("Boeffla-sound: boeffla sound enabled during startup\n");
+	}
+
 }
 
 
@@ -2131,15 +2144,13 @@ static int boeffla_sound_init(void)
 		return 0;
 	}
 
-	// Print debug info
-	printk("Boeffla-sound: engine version %s started\n", BOEFFLA_SOUND_VERSION);
+	// Initialize boeffla sound master switch with OFF per default (will be set to correct
+	// default value when we receive the codec pointer later - avoids startup boot loop)
+	boeffla_sound = OFF;
 
-	// Initialize boeffla sound master switch and default debug level
-	boeffla_sound = BOEFFLA_SOUND_DEFAULT;
-	debug_level = DEBUG_DEFAULT;
-
-	// initialize global variables
+	// initialize global variables and default debug level
 	initialize_global_variables();
+	debug_level = DEBUG_DEFAULT;
 
 	// The mic mode register default values ore only initialized once when
 	// the driver is loaded (as values get cached once boeffla sound is switched on)
@@ -2151,6 +2162,9 @@ static int boeffla_sound_init(void)
 	mic_mode_regcache[5] = MIC_DEFAULT_DRC1_2;
 	mic_mode_regcache[6] = MIC_DEFAULT_DRC1_3;
 	mic_mode_regcache[7] = MIC_DEFAULT_DRC1_4;
+
+	// Print debug info
+	printk("Boeffla-sound: engine version %s started\n", BOEFFLA_SOUND_VERSION);
 
 	return 0;
 }
@@ -2171,3 +2185,4 @@ static void boeffla_sound_exit(void)
 
 module_init(boeffla_sound_init);
 module_exit(boeffla_sound_exit);
+
