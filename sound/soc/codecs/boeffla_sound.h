@@ -1,7 +1,7 @@
 /*
- * Author: andip71, 25.01.2013
+ * Author: andip71, 27.01.2013
  *
- * Version 1.4.7
+ * Version 1.4.8
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    sound implementation,
@@ -33,7 +33,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 
 // Boeffla sound general
 #define BOEFFLA_SOUND_DEFAULT 	0
-#define BOEFFLA_SOUND_VERSION 	"1.4.7"
+#define BOEFFLA_SOUND_VERSION 	"1.4.8"
 
 // Debug mode
 #define DEBUG_DEFAULT 		1
@@ -114,15 +114,6 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 #define MIC_MODE_LIGHT 		3
 
 // Microphone control
-#define MIC_DEFAULT_LEFT_VALUE		267
-#define MIC_DEFAULT_RIGHT_VALUE		267
-#define MIC_DEFAULT_INPUT_MIXER_3	144
-#define MIC_DEFAULT_INPUT_MIXER_4	144
-#define MIC_DEFAULT_DRC1_1		152
-#define MIC_DEFAULT_DRC1_2		2116
-#define MIC_DEFAULT_DRC1_3		232
-#define MIC_DEFAULT_DRC1_4		528
-
 #define MIC_CONCERT_LEFT_VALUE		271
 #define MIC_CONCERT_RIGHT_VALUE		271
 #define MIC_CONCERT_INPUT_MIXER_3	32
