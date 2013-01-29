@@ -1,7 +1,7 @@
 /*
  * Author: andip71, 27.01.2013
  *
- * Version 1.4.8
+ * Version 1.4.8+
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
  * 	    sound implementation,
@@ -64,6 +64,8 @@ static int mic_mode;
 static unsigned int mic_register_cache[9];
 
 static unsigned int debug_register;
+
+static int mic_register_cache_semaphore = 0; /* Cache stock mic settings only once */
 
 // internal state variables
 static bool is_call;
@@ -1178,7 +1180,7 @@ static unsigned int get_mic_mode_for_hook(int reg_index, unsigned int value)
 {
 	// if mic mode is default -> return value back to hook
 	// otherwise, request value for selected mic mode
-	if (mic_mode == MIC_MODE_DEFAULT)
+	if (mic_mode == MIC_MODE_DEFAULT || mic_register_cache_semaphore == 0) /* as long as we haven't cached these values, we don't wanna mess with them */ 
 		return value;
 
 	return get_mic_mode(reg_index);
@@ -1883,9 +1885,10 @@ static ssize_t mic_mode_store(struct device *dev, struct device_attribute *attr,
 	{
 		// if mic mode is changed from default to a different setting,
 		// update the mic register cache first
-		if ((mic_mode == MIC_MODE_DEFAULT) && (mic_mode != val))
+		if ((mic_mode == MIC_MODE_DEFAULT) && (mic_register_cache_semaphore == 0))
 		{
 			update_mic_register_cache();
+			mic_register_cache_semaphore = 1; /* Now we have the stock values, no need to go through here once again */
 		}
 
 		mic_mode = val;
