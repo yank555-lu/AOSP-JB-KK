@@ -1,11 +1,7 @@
 /*
- * Author: andip71, 27.01.2013
+ * Author: andip71, 28.01.2013
  *
- * Version 1.4.8+
- *
- * credits: Supercurio for ideas and partially code from his Voodoo
- * 	    sound implementation,
- *          Gokhanmoral for further modifications to the original code
+ * Version 1.4.9
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -33,7 +29,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 
 // Boeffla sound general
 #define BOEFFLA_SOUND_DEFAULT 	0
-#define BOEFFLA_SOUND_VERSION 	"1.4.8+"
+#define BOEFFLA_SOUND_VERSION 	"1.4.9"
 
 // Debug mode
 #define DEBUG_DEFAULT 		1
