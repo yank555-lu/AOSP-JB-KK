@@ -3,11 +3,16 @@ export KERNELDIR=`readlink -f .`
 export RAMFS_SOURCE=`readlink -f $KERNELDIR/ramdisk`
 export USE_SEC_FIPS_MODE=true
 
+echo "kerneldir = $KERNELDIR"
+echo "ramfs_source = $RAMFS_SOURCE"
+
 if [ "${1}" != "" ];then
   export KERNELDIR=`readlink -f ${1}`
 fi
 
 RAMFS_TMP="/home/yank555-lu/temp/tmp/ramfs-source-sgs3"
+
+echo "ramfs_tmp = $RAMFS_TMP"
 
 . $KERNELDIR/.config
 
