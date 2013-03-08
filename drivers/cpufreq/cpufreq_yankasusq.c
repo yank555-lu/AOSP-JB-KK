@@ -1521,8 +1521,8 @@ static struct notifier_block reboot_notifier = {
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static struct early_suspend early_suspend;
-unsigned int yank_prev_freq_step;
-unsigned int yank_prev_sampling_rate;
+//unsigned int yank_prev_freq_step;
+//unsigned int yank_prev_sampling_rate;
 int yank_prev_cpufreq_max_limit_val;  /* Yank555.lu : Maximum numbers of cores online before screen went off */
 unsigned int cpufreq_level;           /* Yank555.lu : Level to lock max CPU freq. */
 int lock_ret;
@@ -1534,10 +1534,10 @@ static void cpufreq_yankasusq_early_suspend(struct early_suspend *h)
 	dbs_tuners_ins.early_suspend =
 		atomic_read(&g_hotplug_lock);
 #endif
-	yank_prev_freq_step = dbs_tuners_ins.freq_step;
-	yank_prev_sampling_rate = dbs_tuners_ins.sampling_rate;
-	dbs_tuners_ins.freq_step = 20;
-	dbs_tuners_ins.sampling_rate *= 4;
+//	yank_prev_freq_step = dbs_tuners_ins.freq_step;
+//	yank_prev_sampling_rate = dbs_tuners_ins.sampling_rate;
+//	dbs_tuners_ins.freq_step = 20;
+//	dbs_tuners_ins.sampling_rate *= 4;
 	set_cpu_max_freq_current();                                      /* Yank555.lu : Screen is off, set CPU freq. limit accordingly */
 	yank_prev_cpufreq_max_limit_val = cpufreq_max_limit_val;	 /* Yank555.lu : Keep cpufreq_max_limit_val safe */
 
@@ -1568,9 +1568,9 @@ static void cpufreq_yankasusq_late_resume(struct early_suspend *h)
 	atomic_set(&g_hotplug_lock, dbs_tuners_ins.early_suspend);
 #endif
 	dbs_tuners_ins.early_suspend = -1;
-	dbs_tuners_ins.freq_step = yank_prev_freq_step;
-	dbs_tuners_ins.sampling_rate = yank_prev_sampling_rate;
-	set_cpu_max_freq_current();                              /* Yank555.lu : Screen if on, enforce core-based CPU freq. limit */
+//	dbs_tuners_ins.freq_step = yank_prev_freq_step;
+//	dbs_tuners_ins.sampling_rate = yank_prev_sampling_rate;
+	set_cpu_max_freq_current();                              /* Yank555.lu : Screen is on, enforce core-based CPU freq. limit */
 	/* Yank555.lu : Restore cpufreq_max_limit_val */
 	if (get_cpufreq_level(yank_prev_cpufreq_max_limit_val, &cpufreq_level) == VALID_LEVEL) {
 		if (cpufreq_max_limit_val != -1) {
