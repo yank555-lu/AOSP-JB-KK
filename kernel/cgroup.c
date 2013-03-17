@@ -378,7 +378,6 @@ static void free_css_set_work(struct work_struct *work)
 			cgroup_wakeup_rmdir_waiter(cgrp);
 		}
 		rcu_read_unlock();
-
 		kfree(link);
 	}
 	write_unlock(&css_set_lock);
