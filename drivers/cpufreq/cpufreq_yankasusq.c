@@ -1563,6 +1563,8 @@ static void cpufreq_yankasusq_early_suspend(struct early_suspend *h)
 }
 static void cpufreq_yankasusq_late_resume(struct early_suspend *h)
 {
+	struct cpu_dbs_info_s *dbs_info;
+
 	printk(KERN_ERR "YankasusQ : exiting suspend...\n");
 #if EARLYSUSPEND_HOTPLUGLOCK
 	atomic_set(&g_hotplug_lock, dbs_tuners_ins.early_suspend);
@@ -1571,6 +1573,7 @@ static void cpufreq_yankasusq_late_resume(struct early_suspend *h)
 //	dbs_tuners_ins.freq_step = yank_prev_freq_step;
 //	dbs_tuners_ins.sampling_rate = yank_prev_sampling_rate;
 	set_cpu_max_freq_current();                              /* Yank555.lu : Screen is on, enforce core-based CPU freq. limit */
+
 	/* Yank555.lu : Restore cpufreq_max_limit_val */
 	if (get_cpufreq_level(yank_prev_cpufreq_max_limit_val, &cpufreq_level) == VALID_LEVEL) {
 		if (cpufreq_max_limit_val != -1) {
@@ -1585,6 +1588,11 @@ static void cpufreq_yankasusq_late_resume(struct early_suspend *h)
 		}
 		cpufreq_max_limit_val = yank_prev_cpufreq_max_limit_val;
 	}
+
+	/* Yank555.lu : Device wakeup, push CPU freq. to cpufreq_max_freq_current */
+	dbs_info = &per_cpu(od_cpu_dbs_info, 0); /* from CPU0 */
+	dbs_freq_increase(dbs_info->cur_policy, dbs_tuners_ins.cpu_max_freq_current);
+
 #if EARLYSUSPEND_HOTPLUGLOCK
 	apply_hotplug_lock();
 	start_rq_work();
