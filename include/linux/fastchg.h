@@ -18,7 +18,7 @@
 #ifndef _LINUX_FASTCHG_H
 #define _LINUX_FASTCHG_H
 
-#define FAST_CHARGE_VERSION "Forced Fast Charge by Yank555.lu v1.2b\n"
+#define FAST_CHARGE_VERSION "Forced Fast Charge by Yank555.lu v1.3\n"
 
 extern int force_fast_charge;
 
