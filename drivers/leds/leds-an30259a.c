@@ -355,9 +355,9 @@ static void an30259a_start_led_pattern(int mode)
 		g_brightness = LED_G_CURRENT / LED_DYNAMIC_CURRENT;
 		b_brightness = LED_B_CURRENT / LED_DYNAMIC_CURRENT;
 	} else {
-		r_brightness = LED_MAX_CURRENT;
-		g_brightness = LED_MAX_CURRENT;
-		b_brightness = LED_MAX_CURRENT;
+		r_brightness = led_intensity / LED_DYNAMIC_CURRENT;
+		g_brightness = led_intensity / LED_DYNAMIC_CURRENT;
+		b_brightness = led_intensity / LED_DYNAMIC_CURRENT;
 	}
 
 	switch (mode) {
@@ -462,6 +462,8 @@ static void an30259a_set_led_blink(enum an30259a_led_enum led,
 	/* Yank555.lu : Control LED intensity (normal, bright) */
 	if (led_intensity == 0)
 		brightness = (brightness * LED_DYNAMIC_CURRENT) / LED_MAX_CURRENT;
+	else
+		brightness = led_intensity;
 
 	if (delay_on_time > SLPTT_MAX_VALUE)
 		delay_on_time = SLPTT_MAX_VALUE;
@@ -635,8 +637,7 @@ static ssize_t show_an30259a_led_intensity(struct device *dev,
 {
 	switch(led_intensity) {
 		case 0:		return sprintf(buf, "%d - normal LED intensity\n", led_intensity);
-		case 1:		return sprintf(buf, "%d - high LED intensity\n", led_intensity);
-		default:	return sprintf(buf, "%d - LED intesity is in undefined status\n", led_intensity);
+		default:	return sprintf(buf, "%d - LED intesity override set to %d (1-255)\n", led_intensity, led_intensity);
 	}
 }
 
@@ -644,17 +645,17 @@ static ssize_t store_an30259a_led_intensity(struct device *dev,
 					struct device_attribute *devattr,
 					const char *buf, size_t count)
 {
-	int enabled = -1; /* default to not set a new value */
+	int new_intensity = -1; /* default to not set a new value */
 
-	sscanf(buf, "%d", &enabled);
+	sscanf(buf, "%d", &new_intensity);
 
-	switch(enabled) { /* Accept only if 0, 1 or 2 */
-		case 0:
-		case 1:		led_intensity = enabled;
-		default:	return count;
-	}
+	/* Only values between 0 and 255 are accepted */
+	if (new_intensity >= 0 && new_intensity <= 255)
 
-	printk(KERN_DEBUG "led_intensity is called\n");
+		led_intensity = new_intensity;
+
+	return count;
+
 }
 
 static ssize_t show_an30259a_led_speed(struct device *dev,
