@@ -11,6 +11,45 @@
  * the Free Software Foundation; version 2 of the License.
  *
  */
+/* Extended sysfs interface to allow for full control of LED operations
+ *
+ * Extension Author: Jean-Pierre Rasquin <yank555.lu@gmail.com>
+ *
+ * SysFS interface :
+ * -----------------
+ *
+ * /sys/class/sec/led/led_fade (rw)
+ *
+ *   0 : blink (Samsung style)
+ *   1 : fade (CyanogenMod style)
+ *
+ * /sys/class/sec/led/led_intensity (rw)
+ *
+ *        0 : stock CM behaviour
+ *    1- 39 : darker than Samsung stock
+ *       40 : stock Samsung behaviour
+ *   41-255 : brighter than Samsung stock
+ *
+ *    NB: Low power mode respected, applied brightness is divided by 0x8, except in CM mode, where it's never applied
+ *
+ * /sys/class/sec/led/led_speed (rw)
+ *
+ *   1 : normal rate
+ *   2 : 2x faster
+ *   3 : 3x faster
+ *   4 : 4x faster
+ *   5 : 5x faster
+ *
+ * /sys/class/sec/led/led_slope (rw)
+ *
+ *   takes 4 parameters, each between 0 and 5 (steps of 4ms) for :
+ *
+ *      slope up operation 1
+ *      slope up operation 2
+ *      slope down operation 1
+ *      slope down operation 2
+ */
+
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -145,7 +184,7 @@ struct i2c_client *b_client;
 extern struct class *sec_class;
 struct device *led_dev;
 int led_enable_fade;
-int led_intensity;
+u8 led_intensity;
 int led_speed;
 int led_slope_up_1;
 int led_slope_up_2;
@@ -351,9 +390,9 @@ static void an30259a_start_led_pattern(int mode)
 
 	/* Yank555.lu : Control LED intensity (normal, bright) */
 	if (led_intensity == 0) {
-		r_brightness = LED_R_CURRENT / LED_DYNAMIC_CURRENT;
-		g_brightness = LED_G_CURRENT / LED_DYNAMIC_CURRENT;
-		b_brightness = LED_B_CURRENT / LED_DYNAMIC_CURRENT;
+		r_brightness = LED_R_CURRENT; /* CM stock behaviour */
+		g_brightness = LED_G_CURRENT;
+		b_brightness = LED_B_CURRENT;
 	} else {
 		r_brightness = led_intensity / LED_DYNAMIC_CURRENT;
 		g_brightness = led_intensity / LED_DYNAMIC_CURRENT;
@@ -459,11 +498,11 @@ static void an30259a_set_led_blink(enum an30259a_led_enum led,
 	else if (led == LED_B)
 		LED_DYNAMIC_CURRENT = LED_B_CURRENT;
 
-	/* Yank555.lu : Control LED intensity (normal, bright) */
-	if (led_intensity == 0)
+	/* Yank555.lu : Control LED intensity (CM, Samsung, override) */
+	if (led_intensity == 40) /* Samsung stock behaviour */
 		brightness = (brightness * LED_DYNAMIC_CURRENT) / LED_MAX_CURRENT;
-	else
-		brightness = led_intensity;
+	else if (led_intensity != 0) /* CM stock behaviour */
+		brightness = (brightness * led_intensity) / LED_MAX_CURRENT; /* override, darker or brighter */
 
 	if (delay_on_time > SLPTT_MAX_VALUE)
 		delay_on_time = SLPTT_MAX_VALUE;
@@ -636,8 +675,12 @@ static ssize_t show_an30259a_led_intensity(struct device *dev,
                     struct device_attribute *attr, char *buf)
 {
 	switch(led_intensity) {
-		case 0:		return sprintf(buf, "%d - normal LED intensity\n", led_intensity);
-		default:	return sprintf(buf, "%d - LED intesity override set to %d (1-255)\n", led_intensity, led_intensity);
+		case  0:	return sprintf(buf, "%d - CM stock LED intensity\n", led_intensity);
+		case 40:	return sprintf(buf, "%d - Samsung stock LED intensity\n", led_intensity);
+		default:	if (led_intensity < 40) 
+					return sprintf(buf, "%d - LED intesity darker by %d steps\n", led_intensity, 40-led_intensity);
+				else
+					return sprintf(buf, "%d - LED intesity brighter by %d steps\n", led_intensity, led_intensity-40);
 	}
 }
 
@@ -652,7 +695,7 @@ static ssize_t store_an30259a_led_intensity(struct device *dev,
 	/* Only values between 0 and 255 are accepted */
 	if (new_intensity >= 0 && new_intensity <= 255)
 
-		led_intensity = new_intensity;
+		led_intensity = (u8)new_intensity;
 
 	return count;
 
@@ -662,7 +705,7 @@ static ssize_t show_an30259a_led_speed(struct device *dev,
                     struct device_attribute *attr, char *buf)
 {
 	switch(led_speed) {
-		case 1:		return sprintf(buf, "%d - LED blinking/fading speed is normal\n", led_speed); break;
+		case 1:		return sprintf(buf, "%d - LED blinking/fading speed as requested\n", led_speed); break;
 		case 2:
 		case 3:
 		case 4:
@@ -1037,7 +1080,8 @@ static int __devinit an30259a_probe(struct i2c_client *client,
 
 #ifdef SEC_LED_SPECIFIC
 	led_enable_fade = 1;  /* default to CM behaviour = fade */
-	led_intensity = 192;  /* default to CM behaviour = normal intensity */
+	led_intensity =  0;   /* default to CM behaviour = brighter blink intensity allowed */
+//	led_intensity = 40;   /* default to Samsung behaviour = normal intensity */
 	led_speed = 1;        /* default to stock behaviour = normal blinking/fading speed */
 	led_slope_up_1 = 1;   /* default slope durations to CM behaviour */
 	led_slope_up_2 = 1;
