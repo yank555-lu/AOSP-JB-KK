@@ -74,7 +74,6 @@ static unsigned int debug_register;		// current register to show in debug regist
 static bool is_call;			// is currently a call active?
 static bool is_headphone;		// is headphone connected?
 static bool is_socket;			// is something connected to the headphone socket?
-static bool is_fmradio;			// is stock fm radio app active?
 static bool is_eq;				// is an equalizer (headphone or speaker tuning) active?
 static bool is_eq_headphone;	// is equalizer for headphone or speaker currently?
 static bool is_mic_controlled;	// is microphone sensivity controlled by boeffla-sound or not?
@@ -97,7 +96,6 @@ static bool debug(int level);
 static bool check_for_call(bool load_register, unsigned int val);
 static bool check_for_socket(unsigned int val);
 static bool check_for_headphone(void);
-static bool check_for_fmradio(void);
 static void handler_headphone_detection(void);
 
 static void set_headphone(void);
@@ -325,27 +323,14 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int val)
 	{
 		handler_headphone_detection();
 	}
-
-	// FM radio detection
-	// Important note: We need to absolutely make sure we do not do this detection if one of the
-	// two output mixers are called in this hook (as they can potentially be modified again in the
-	// set_dac_direct call). Otherwise this adds strange value overwriting effects.
-	if (is_fmradio != check_for_fmradio() &&
-		(reg != WM8994_OUTPUT_MIXER_1) && (reg != WM8994_OUTPUT_MIXER_2))
-	{
-		is_fmradio = !is_fmradio;
-
-		if (debug(DEBUG_NORMAL))
-			printk("Boeffla-sound: FM radio detection new status %d\n", is_fmradio);
-
-		// Switch dac_direct
-		set_dac_direct();
-	}
+     
+// Switch dac_direct
+set_dac_direct();
 
 	// print debug info
 	if (debug(DEBUG_VERBOSE))
-		printk("Boeffla-sound: write hook %d -> %d (Orig:%d), c:%d, h:%d, r:%d\n",
-				reg, newval, val, is_call, is_headphone, is_fmradio);
+		printk("Boeffla-sound: write hook %d -> %d (Orig:%d), c:%d, h:%d\n",
+				reg, newval, val, is_call, is_headphone);
 
 	return newval;
 }
@@ -523,55 +508,9 @@ static bool check_for_headphone(void)
 	}
 
 	return false;
-}
-
-
-static bool check_for_fmradio(void)
-{
-	struct snd_soc_dapm_widget *w;
-
-	// loop through widget list to find widget for FM radio and check
-	// power state of it
-	list_for_each_entry(w, &codec->card->widgets, list)
-	{
-		if (w->dapm != &codec->dapm)
-			continue;
-
-		switch (w->id)
-		{
-			case snd_soc_dapm_line:
-				if (w->name)
-				{
-					if(strstr(w->name,"FM In") != 0)
-					{
-						if((w->power) != 0)
-							return true;
-						else
-							return false;
-					}
 				}
-				break;
-			case snd_soc_dapm_mic:
-			case snd_soc_dapm_hp:
-			case snd_soc_dapm_spk:
-			case snd_soc_dapm_micbias:
-			case snd_soc_dapm_dac:
-			case snd_soc_dapm_adc:
-			case snd_soc_dapm_pga:
-			case snd_soc_dapm_out_drv:
-			case snd_soc_dapm_mixer:
-			case snd_soc_dapm_mixer_named_ctl:
-			case snd_soc_dapm_supply:
-				break;
-			default:
-				break;
-		}
-	}
-
-	return false;
-}
-
-
+     
+     
 static void handler_headphone_detection(void)
 {
 	if (check_for_headphone())
@@ -1110,12 +1049,9 @@ static void set_dac_direct(void)
 
 static unsigned int get_dac_direct_l(unsigned int val)
 {
-	// dac direct is only enabled if fm radio is not active
-	if ((dac_direct == ON) && (!is_fmradio))
-	{
 		// enable dac_direct: bypass for both channels, mute output mixer
 		return((val & ~WM8994_DAC1L_TO_MIXOUTL) | WM8994_DAC1L_TO_HPOUT1L);
-	}
+     
 
 	// disable dac_direct: enable bypass for both channels, mute output mixer
 	return((val & ~WM8994_DAC1L_TO_HPOUT1L) | WM8994_DAC1L_TO_MIXOUTL);
@@ -1123,12 +1059,9 @@ static unsigned int get_dac_direct_l(unsigned int val)
 
 static unsigned int get_dac_direct_r(unsigned int val)
 {
-	// dac direct is only enabled if fm radio is not active
-	if ((dac_direct == ON) && (!is_fmradio))
-	{
 		// enable dac_direct: bypass for both channels, mute output mixer
 		return((val & ~WM8994_DAC1R_TO_MIXOUTR) | WM8994_DAC1R_TO_HPOUT1R);
-	}
+     
 
 	// disable dac_direct: enable bypass for both channels, mute output mixer
 	return((val & ~WM8994_DAC1R_TO_HPOUT1R) | WM8994_DAC1R_TO_MIXOUTR);
@@ -1397,7 +1330,7 @@ static void initialize_global_variables(void)
 	dac_oversampling = OFF;
 
 	fll_tuning = OFF;
-	
+
 	stereo_expansion_gain = STEREO_EXPANSION_GAIN_OFF;
 
 	mono_downmix = OFF;
@@ -1413,7 +1346,6 @@ static void initialize_global_variables(void)
 	is_call = false;
 	is_socket = false;
 	is_headphone = false;
-	is_fmradio = false;
 	is_eq = false;
 	is_eq_headphone = false;
 	is_mic_controlled=false;
@@ -1463,14 +1395,13 @@ static void reset_boeffla_sound(void)
 
 	// reset mic level
 	set_mic_level();
-
-	// initialize jacket, headphone, call and fm radio status
+     
+// initialize jacket, headphone, call
 	val = wm8994_read(codec, WM1811_JACKDET_CTRL);
 	is_socket = check_for_socket(val);
-
-	is_call = check_for_call(true, 0);
-	handler_headphone_detection();
-	is_fmradio = check_for_fmradio();
+     
+//	is_call = check_for_call(true, 0);
+    handler_headphone_detection();
 
 	// print debug info
 	if (debug(DEBUG_NORMAL))
@@ -2354,11 +2285,11 @@ static ssize_t debug_info_show(struct device *dev, struct device_attribute *attr
 
 	val = wm8994_read(codec, WM8994_AIF1_DAC1_FILTERS_2);
 	sprintf(buf+strlen(buf), "WM8994_AIF1_DAC1_FILTERS_2: %d\n", val);
-
-	// add the current states of call, headphone and fmradio
-	sprintf(buf+strlen(buf), "is_call:%d is_socket: %d is_headphone:%d is_fmradio:%d\n",
-				is_call, is_socket, is_headphone, is_fmradio);
-
+     
+            // add the current states of call, headphone
+            sprintf(buf+strlen(buf), "is_call:%d is_socket: %d is_headphone:%d\n",
+                                    is_call, is_socket, is_headphone);
+     
 	// add the current states of internal headphone handling and mono downmix
 	sprintf(buf+strlen(buf), "is_eq:%d is_eq_headphone: %d is_mono_downmix: %d\n",
 				is_eq, is_eq_headphone, is_mono_downmix);
@@ -2583,4 +2514,3 @@ static void boeffla_sound_exit(void)
 
 module_init(boeffla_sound_init);
 module_exit(boeffla_sound_exit);
-
