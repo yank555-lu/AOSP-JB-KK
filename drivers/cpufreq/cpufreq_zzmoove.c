@@ -1244,34 +1244,48 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	return;
 	}
 	
-	// ZZ: LCDFreq Scaling down delay
+	// ZZ: LCDFreq Scaling
 	if(dbs_tuners_ins.lcdfreq_enable) {
-		if(this_dbs_info->requested_freq > dbs_tuners_ins.lcdfreq_kick_in_freq) {
-		dbs_tuners_ins.lcdfreq_kick_in_down_left =
-		dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-		} else
-		if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
-			dbs_tuners_ins.lcdfreq_kick_in_down_left--;
-	}
-	
-	// ZZ: LCDFreq Scaling up delay
-	if(dbs_tuners_ins.lcdfreq_enable) {
-		if(this_dbs_info->requested_freq < dbs_tuners_ins.lcdfreq_kick_in_freq) {
-		dbs_tuners_ins.lcdfreq_kick_in_up_left =
-		dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-		} else
-		if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
-			dbs_tuners_ins.lcdfreq_kick_in_up_left--;
-	}
 
-	// ZZ: LCDFreq Scaling set frequency if needed
-	if(dbs_tuners_ins.lcdfreq_enable) {
+		// ZZ: LCDFreq Scaling delays
+		if( (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // No core threshold, only check freq. threshold
+		     dbs_tuners_ins.lcdfreq_kick_in_cores == 0                                ) ||
+
+		    (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // Core threshold reached, check freq. threshold
+		     dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&
+		     dbs_tuners_ins.lcdfreq_kick_in_cores == num_online_cpus()                ) ||
+
+		    (dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&      // Core threshold passed, no need to check freq. threshold
+		     dbs_tuners_ins.lcdfreq_kick_in_cores <  num_online_cpus()                )
+		                                                                                   ) {
+
+			// We are above threshold, reset down delay, decrement up delay
+			if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
+				dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
+			dbs_tuners_ins.lcdfreq_kick_in_up_left--;
+
+		} else {
+
+			// We are below threshold, reset up delay, decrement down delay
+			if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
+				dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
+			dbs_tuners_ins.lcdfreq_kick_in_down_left--;
+
+		}
+
+		// ZZ: LCDFreq Scaling set frequency if needed
 		if(dbs_tuners_ins.lcdfreq_kick_in_up_left <= 0 && lcdfreq_lock_current != 0) {
+
+			// We reached up delay, set frequency to 60Hz
 			lcdfreq_lock_current = 0;
 			_lcdfreq_lock(lcdfreq_lock_current);
+
 		} else if(dbs_tuners_ins.lcdfreq_kick_in_down_left <= 0 && lcdfreq_lock_current != 1) {
+
+			// We reached down delay, set frequency to 40Hz
 			lcdfreq_lock_current = 1;
 			_lcdfreq_lock(lcdfreq_lock_current);
+
 		}
 	}
 	
