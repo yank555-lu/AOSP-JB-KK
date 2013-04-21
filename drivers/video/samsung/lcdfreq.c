@@ -372,7 +372,7 @@ static ssize_t time_in_state_show(struct device *dev,
 
 	do_time_slice(lcdfreq->level);
 
-	return sprintf(buf, "%llu %d\n%llu %d", 
+	return sprintf(buf, "%llu %d (60Hz)\n%llu %d (40Hz)\n", 
 		(unsigned long long)time_in_state[LEVEL_NORMAL], LEVEL_NORMAL,
 		(unsigned long long)time_in_state[LEVEL_LIMIT], LEVEL_LIMIT);
 }
