@@ -1262,14 +1262,16 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			// We are above threshold, reset down delay, decrement up delay
 			if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
 				dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-			dbs_tuners_ins.lcdfreq_kick_in_up_left--;
+			if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
+				dbs_tuners_ins.lcdfreq_kick_in_up_left--;
 
 		} else {
 
 			// We are below threshold, reset up delay, decrement down delay
 			if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
 				dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-			dbs_tuners_ins.lcdfreq_kick_in_down_left--;
+			if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
+				dbs_tuners_ins.lcdfreq_kick_in_down_left--;
 
 		}
 
@@ -1355,14 +1357,16 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				// We are above threshold, reset down delay, decrement up delay
 				if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
 					dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-				dbs_tuners_ins.lcdfreq_kick_in_up_left--;
+				if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
+					dbs_tuners_ins.lcdfreq_kick_in_up_left--;
 
 			} else {
 
 				// We are below threshold, reset up delay, decrement down delay
 				if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
 					dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-				dbs_tuners_ins.lcdfreq_kick_in_down_left--;
+				if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
+					dbs_tuners_ins.lcdfreq_kick_in_down_left--;
 
 			}
 
@@ -1411,14 +1415,16 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				// We are above threshold, reset down delay, decrement up delay
 				if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
 					dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-				dbs_tuners_ins.lcdfreq_kick_in_up_left--;
+				if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
+					dbs_tuners_ins.lcdfreq_kick_in_up_left--;
 
 			} else {
 
 				// We are below threshold, reset up delay, decrement down delay
 				if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
 					dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-				dbs_tuners_ins.lcdfreq_kick_in_down_left--;
+				if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
+					dbs_tuners_ins.lcdfreq_kick_in_down_left--;
 
 			}
 
@@ -1466,14 +1472,16 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				// We are above threshold, reset down delay, decrement up delay
 				if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
 					dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-				dbs_tuners_ins.lcdfreq_kick_in_up_left--;
+				if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
+					dbs_tuners_ins.lcdfreq_kick_in_up_left--;
 
 			} else {
 
 				// We are below threshold, reset up delay, decrement down delay
 				if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
 					dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-				dbs_tuners_ins.lcdfreq_kick_in_down_left--;
+				if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
+					dbs_tuners_ins.lcdfreq_kick_in_down_left--;
 
 			}
 
