@@ -120,16 +120,6 @@
 #define DEF_FREQ_STEP_SLEEP			(5)	// ZZ: default for freq step on early suspend
 
 /*
-* ZZ: LCDFreq Scaling
-*/
-
-#define LCD_FREQ_KICK_IN_DOWN_DELAY    (20)
-#define LCD_FREQ_KICK_IN_UP_DELAY      (50)
-#define LCD_FREQ_KICK_IN_FREQ      (500000)
-#define LCD_FREQ_KICK_IN_CORES          (0)
-extern int _lcdfreq_lock(int lock);
-
-/*
  * The polling frequency of this governor depends on the capability of
  * the processor. Default polling frequency is 1000 times the transition
  * latency of the processor. The governor will work on any processor with
@@ -145,13 +135,6 @@ extern int _lcdfreq_lock(int lock);
 static unsigned int min_sampling_rate;
 
 // raise sampling rate to SR*multiplier and adjust sampling rate/thresholds/hotplug/scaling/freq limit/freq step on blank screen
-
-// ZZ: LCD Freq sclaing
-static int lcdfreq_lock_current = 0;
-static int prev_lcdfreq_lock_current;
-static int prev_lcdfreq_enable;
-static int prev_lcdfreq_enable;
-
 static unsigned int sampling_rate_awake;
 static unsigned int up_threshold_awake;
 static unsigned int down_threshold_awake;
@@ -258,14 +241,6 @@ static struct dbs_tuners {
 	unsigned int freq_limit_sleep;			// ZZ: added tuneable freq_limit_sleep
 	unsigned int fast_scaling;			// ZZ: added tuneable fast_scaling
 	unsigned int fast_scaling_sleep;		// ZZ: added tuneable fast_scaling_sleep
-	// ZZ: LCDFreq Scaling
-	int lcdfreq_enable;
-	unsigned int lcdfreq_kick_in_down_delay;
-	unsigned int lcdfreq_kick_in_down_left;
-	unsigned int lcdfreq_kick_in_up_delay;
-	unsigned int lcdfreq_kick_in_up_left;
-	unsigned int lcdfreq_kick_in_freq;
-	unsigned int lcdfreq_kick_in_cores;
 	
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
@@ -290,15 +265,7 @@ static struct dbs_tuners {
 	.freq_limit_sleep = DEF_FREQ_LIMIT_SLEEP,				// ZZ: set default value for new tuneable
 	.fast_scaling = DEF_FAST_SCALING,					// ZZ: set default value for new tuneable
 	.fast_scaling_sleep = DEF_FAST_SCALING_SLEEP,				// ZZ: set default value for new tuneable
-// ZZ: LCDFreq Scaling
-	.lcdfreq_enable = false,
-	.lcdfreq_kick_in_down_delay = LCD_FREQ_KICK_IN_DOWN_DELAY,
-	.lcdfreq_kick_in_down_left = LCD_FREQ_KICK_IN_DOWN_DELAY,
-	.lcdfreq_kick_in_up_delay = LCD_FREQ_KICK_IN_UP_DELAY,
-	.lcdfreq_kick_in_up_left = LCD_FREQ_KICK_IN_UP_DELAY,
-	.lcdfreq_kick_in_freq = LCD_FREQ_KICK_IN_FREQ,
-	.lcdfreq_kick_in_cores = LCD_FREQ_KICK_IN_CORES,
-	};
+};
 
 /**
  * Smooth scaling conservative governor (by Michael Weingaertner)
@@ -497,12 +464,6 @@ show_one(freq_limit, freq_limit);						// ZZ: added freq_limit tuneable
 show_one(freq_limit_sleep, freq_limit_sleep);					// ZZ: added freq_limit_sleep tuneable for early suspend
 show_one(fast_scaling, fast_scaling);						// ZZ: added fast_scaling tuneable
 show_one(fast_scaling_sleep, fast_scaling_sleep);				// ZZ: added fast_scaling_sleep tuneable for early suspend
-// ZZ: LCDFreq Scaling
-show_one(lcdfreq_enable, lcdfreq_enable);
-show_one(lcdfreq_kick_in_down_delay, lcdfreq_kick_in_down_delay);
-show_one(lcdfreq_kick_in_up_delay, lcdfreq_kick_in_up_delay);
-show_one(lcdfreq_kick_in_freq, lcdfreq_kick_in_freq);
-show_one(lcdfreq_kick_in_cores, lcdfreq_kick_in_cores);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -913,102 +874,6 @@ static ssize_t store_fast_scaling_sleep(struct kobject *a,
 	return count;
 }
 
-// ZZ: LCDFreq Scaling Master Switch
-static ssize_t store_lcdfreq_enable(struct kobject *a, struct attribute *b,
-const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-
-	ret = sscanf(buf, "%u", &input);
-	if (ret != 1)
-	return -EINVAL;
-
-	if (input > 0) {
-		dbs_tuners_ins.lcdfreq_enable = true;
-	}
-	else {
-		dbs_tuners_ins.lcdfreq_enable = false;
-		// Set screen to 60Hz when stopping to switch
-		lcdfreq_lock_current = 0;
-		_lcdfreq_lock(lcdfreq_lock_current);
-	}
-
-	return count;
-}
-
-// ZZ: LCDFreq Scaling Down Delay
-static ssize_t store_lcdfreq_kick_in_down_delay(struct kobject *a, struct attribute *b,
-const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-
-	ret = sscanf(buf, "%u", &input);
-	if (ret != 1 && input < 0)
-	return -EINVAL;
-
-	dbs_tuners_ins.lcdfreq_kick_in_down_delay = input;
-	dbs_tuners_ins.lcdfreq_kick_in_down_left =
-	dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-	return count;
-}
-
-// ZZ: LCDFreq Scaling Up Delay
-static ssize_t store_lcdfreq_kick_in_up_delay(struct kobject *a, struct attribute *b,
-const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-
-	ret = sscanf(buf, "%u", &input);
-	if (ret != 1 && input < 0)
-	return -EINVAL;
-
-	dbs_tuners_ins.lcdfreq_kick_in_up_delay = input;
-	dbs_tuners_ins.lcdfreq_kick_in_up_left =
-	dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-	return count;
-}
-
-// ZZ: LCDFreq Scaling Frequency Threshold
-static ssize_t store_lcdfreq_kick_in_freq(struct kobject *a, struct attribute *b,
-const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-
-	ret = sscanf(buf, "%u", &input);
-	if (ret != 1)
-	return -EINVAL;
-
-	dbs_tuners_ins.lcdfreq_kick_in_freq = input;
-	return count;
-}
-
-// ZZ: LCDFreq Scaling Online Cores Threshold
-static ssize_t store_lcdfreq_kick_in_cores(struct kobject *a, struct attribute *b,
-const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-
-	ret = sscanf(buf, "%u", &input);
-	if (ret != 1)
-	return -EINVAL;
-
-	switch(input) {
-
-		case 0  :
-		case 1  :
-		case 2  :
-		case 3  :
-		case 4  : dbs_tuners_ins.lcdfreq_kick_in_cores = input;
-			  return count;
-		default : return -EINVAL;
-	}
-}
-
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_rate_sleep_multiplier);	// ZZ: added tuneable
 define_one_global_rw(sampling_down_factor);
@@ -1032,12 +897,6 @@ define_one_global_rw(freq_limit);			// ZZ: added tuneable
 define_one_global_rw(freq_limit_sleep);			// ZZ: added tuneable
 define_one_global_rw(fast_scaling);			// ZZ: added tuneable
 define_one_global_rw(fast_scaling_sleep);		// ZZ: added tuneable
-// ZZ: LCDFreq Scaling
-define_one_global_rw(lcdfreq_enable);
-define_one_global_rw(lcdfreq_kick_in_down_delay);
-define_one_global_rw(lcdfreq_kick_in_up_delay);
-define_one_global_rw(lcdfreq_kick_in_freq);
-define_one_global_rw(lcdfreq_kick_in_cores);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -1064,12 +923,6 @@ static struct attribute *dbs_attributes[] = {
 	&freq_limit_sleep.attr,				// ZZ: added tuneable
 	&fast_scaling.attr,				// ZZ: added tuneable
 	&fast_scaling_sleep.attr,			// ZZ: added tuneable
-	// ZZ: LCD Freq Scaling
-	&lcdfreq_enable.attr,
-	&lcdfreq_kick_in_down_delay.attr,
-	&lcdfreq_kick_in_up_delay.attr,
-	&lcdfreq_kick_in_freq.attr,
-	&lcdfreq_kick_in_cores.attr,
 	NULL
 };
 
@@ -1093,7 +946,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * ZZ: Frequency Limit: we try here at a verly early stage to limit freqencies above limit by setting the current target_freq to freq_limit.
 	 * This could be for example wakeup or touchboot freqencies which could be above the limit and are out of governors control(?) 
 	 * This can not avoid the incrementation to these frequencies but should bring it down again earlier. Not sure if that is
-	 * a good way to do that or if its working. Just an idea - maybe a remove candidate!
+	 * a good way to do that or if its working. Just an idea - not long enough testet yet - maybe a remove condidate!!
 	 */
 	if (dbs_tuners_ins.freq_limit != 0 && policy->cur > dbs_tuners_ins.freq_limit)
 	__cpufreq_driver_target(policy, dbs_tuners_ins.freq_limit, CPUFREQ_RELATION_L);
@@ -1243,54 +1096,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			CPUFREQ_RELATION_H);
 	return;
 	}
-	
-	// ZZ: LCDFreq Scaling
-	if(dbs_tuners_ins.lcdfreq_enable) {
-
-		// ZZ: LCDFreq Scaling delays
-		if( (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // No core threshold, only check freq. threshold
-		     dbs_tuners_ins.lcdfreq_kick_in_cores == 0                                ) ||
-
-		    (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // Core threshold reached, check freq. threshold
-		     dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&
-		     dbs_tuners_ins.lcdfreq_kick_in_cores == num_online_cpus()                ) ||
-
-		    (dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&      // Core threshold passed, no need to check freq. threshold
-		     dbs_tuners_ins.lcdfreq_kick_in_cores <  num_online_cpus()                )
-		                                                                                   ) {
-
-			// We are above threshold, reset down delay, decrement up delay
-			if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
-				dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-			if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
-				dbs_tuners_ins.lcdfreq_kick_in_up_left--;
-
-		} else {
-
-			// We are below threshold, reset up delay, decrement down delay
-			if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
-				dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-			if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
-				dbs_tuners_ins.lcdfreq_kick_in_down_left--;
-
-		}
-
-		// ZZ: LCDFreq Scaling set frequency if needed
-		if(dbs_tuners_ins.lcdfreq_kick_in_up_left <= 0 && lcdfreq_lock_current != 0) {
-
-			// We reached up delay, set frequency to 60Hz
-			lcdfreq_lock_current = 0;
-			_lcdfreq_lock(lcdfreq_lock_current);
-
-		} else if(dbs_tuners_ins.lcdfreq_kick_in_down_left <= 0 && lcdfreq_lock_current != 1) {
-
-			// We reached down delay, set frequency to 40Hz
-			lcdfreq_lock_current = 1;
-			_lcdfreq_lock(lcdfreq_lock_current);
-
-		}
-	}
-	
+    
 	/* 
 	 * zzmoove v0.1 - Modification by ZaneZam November 2012
 	 * Check for frequency decrease is lower than hotplug value and put cores to sleep accordingly
@@ -1337,58 +1143,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	/* ZZ: Frequency Limit: this should bring down freqency faster if we are coming from above limit (eg. touchboost/wakeup freqencies)*/ 
 	if (dbs_tuners_ins.freq_limit != 0 && policy->cur > dbs_tuners_ins.freq_limit) {
-		this_dbs_info->requested_freq = dbs_tuners_ins.freq_limit;
-	
-		// ZZ: LCDFreq Scaling
-		if(dbs_tuners_ins.lcdfreq_enable) {
-
-			// ZZ: LCDFreq Scaling delays
-			if( (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // No core threshold, only check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores == 0                                ) ||
-
-			    (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // Core threshold reached, check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&
-			     dbs_tuners_ins.lcdfreq_kick_in_cores == num_online_cpus()                ) ||
-
-			    (dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&      // Core threshold passed, no need to check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores <  num_online_cpus()                )
-			                                                                                   ) {
-
-				// We are above threshold, reset down delay, decrement up delay
-				if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
-					dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-				if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
-					dbs_tuners_ins.lcdfreq_kick_in_up_left--;
-
-			} else {
-
-				// We are below threshold, reset up delay, decrement down delay
-				if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
-					dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-				if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
-					dbs_tuners_ins.lcdfreq_kick_in_down_left--;
-
-			}
-
-			// ZZ: LCDFreq Scaling set frequency if needed
-			if(dbs_tuners_ins.lcdfreq_kick_in_up_left <= 0 && lcdfreq_lock_current != 0) {
-
-				// We reached up delay, set frequency to 60Hz
-				lcdfreq_lock_current = 0;
-				_lcdfreq_lock(lcdfreq_lock_current);
-
-			} else if(dbs_tuners_ins.lcdfreq_kick_in_down_left <= 0 && lcdfreq_lock_current != 1) {
-
-				// We reached down delay, set frequency to 40Hz
-				lcdfreq_lock_current = 1;
-				_lcdfreq_lock(lcdfreq_lock_current);
-
-			}
-		}
-
-		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
-					CPUFREQ_RELATION_L);
-		return;
+	this_dbs_info->requested_freq = dbs_tuners_ins.freq_limit;
+	__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
+				CPUFREQ_RELATION_L);
+	return;
 
 	/* ZZ: Frequency Limit: else we scale down as usual */
 	} else if (dbs_tuners_ins.freq_limit != 0 && policy->cur <= dbs_tuners_ins.freq_limit) {
@@ -1396,57 +1154,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, ZZ_DOWN, max_load);
 	    else
 		this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_DOWN, max_load);
-
-		// ZZ: LCDFreq Scaling
-		if(dbs_tuners_ins.lcdfreq_enable) {
-
-			// ZZ: LCDFreq Scaling delays
-			if( (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // No core threshold, only check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores == 0                                ) ||
-
-			    (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // Core threshold reached, check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&
-			     dbs_tuners_ins.lcdfreq_kick_in_cores == num_online_cpus()                ) ||
-
-			    (dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&      // Core threshold passed, no need to check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores <  num_online_cpus()                )
-			                                                                                   ) {
-
-				// We are above threshold, reset down delay, decrement up delay
-				if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
-					dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-				if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
-					dbs_tuners_ins.lcdfreq_kick_in_up_left--;
-
-			} else {
-
-				// We are below threshold, reset up delay, decrement down delay
-				if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
-					dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-				if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
-					dbs_tuners_ins.lcdfreq_kick_in_down_left--;
-
-			}
-
-			// ZZ: LCDFreq Scaling set frequency if needed
-			if(dbs_tuners_ins.lcdfreq_kick_in_up_left <= 0 && lcdfreq_lock_current != 0) {
-
-				// We reached up delay, set frequency to 60Hz
-				lcdfreq_lock_current = 0;
-				_lcdfreq_lock(lcdfreq_lock_current);
-
-			} else if(dbs_tuners_ins.lcdfreq_kick_in_down_left <= 0 && lcdfreq_lock_current != 1) {
-
-				// We reached down delay, set frequency to 40Hz
-				lcdfreq_lock_current = 1;
-				_lcdfreq_lock(lcdfreq_lock_current);
-
-			}
-		}
-		
-		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
-					CPUFREQ_RELATION_L); // ZZ: changed to relation low 
-		return;
+	
+	__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
+				CPUFREQ_RELATION_L); // ZZ: changed to relation low 
+	return;
 	}
 
         if (dbs_tuners_ins.fast_scaling == 1) // ZZ: use fast scaling columns
@@ -1454,56 +1165,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
     	    else
     		this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_DOWN, max_load);
 
-		// ZZ: LCDFreq Scaling
-		if(dbs_tuners_ins.lcdfreq_enable) {
-
-			// ZZ: LCDFreq Scaling delays
-			if( (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // No core threshold, only check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores == 0                                ) ||
-
-			    (dbs_tuners_ins.lcdfreq_kick_in_freq  <= this_dbs_info->requested_freq &&      // Core threshold reached, check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&
-			     dbs_tuners_ins.lcdfreq_kick_in_cores == num_online_cpus()                ) ||
-
-			    (dbs_tuners_ins.lcdfreq_kick_in_cores != 0                             &&      // Core threshold passed, no need to check freq. threshold
-			     dbs_tuners_ins.lcdfreq_kick_in_cores <  num_online_cpus()                )
-			                                                                                   ) {
-
-				// We are above threshold, reset down delay, decrement up delay
-				if(dbs_tuners_ins.lcdfreq_kick_in_down_left != dbs_tuners_ins.lcdfreq_kick_in_down_delay)
-					dbs_tuners_ins.lcdfreq_kick_in_down_left = dbs_tuners_ins.lcdfreq_kick_in_down_delay;
-				if(dbs_tuners_ins.lcdfreq_kick_in_up_left > 0)
-					dbs_tuners_ins.lcdfreq_kick_in_up_left--;
-
-			} else {
-
-				// We are below threshold, reset up delay, decrement down delay
-				if(dbs_tuners_ins.lcdfreq_kick_in_up_left != dbs_tuners_ins.lcdfreq_kick_in_up_delay)
-					dbs_tuners_ins.lcdfreq_kick_in_up_left = dbs_tuners_ins.lcdfreq_kick_in_up_delay;
-				if(dbs_tuners_ins.lcdfreq_kick_in_down_left > 0)
-					dbs_tuners_ins.lcdfreq_kick_in_down_left--;
-
-			}
-
-			// ZZ: LCDFreq Scaling set frequency if needed
-			if(dbs_tuners_ins.lcdfreq_kick_in_up_left <= 0 && lcdfreq_lock_current != 0) {
-
-				// We reached up delay, set frequency to 60Hz
-				lcdfreq_lock_current = 0;
-				_lcdfreq_lock(lcdfreq_lock_current);
-
-			} else if(dbs_tuners_ins.lcdfreq_kick_in_down_left <= 0 && lcdfreq_lock_current != 1) {
-
-				// We reached down delay, set frequency to 40Hz
-				lcdfreq_lock_current = 1;
-				_lcdfreq_lock(lcdfreq_lock_current);
-
-			}
-		}
-			
-		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
-					CPUFREQ_RELATION_L);
-		return;
+	__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
+				CPUFREQ_RELATION_L);
+	return;
 	}
 }
 
@@ -1546,15 +1210,6 @@ static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info)
 static void powersave_early_suspend(struct early_suspend *handler)
 {
   mutex_lock(&dbs_mutex);
-  // ZZ: LCDFreq Scaling
-	prev_lcdfreq_enable = dbs_tuners_ins.lcdfreq_enable;
-	prev_lcdfreq_lock_current = lcdfreq_lock_current;
-	if(dbs_tuners_ins.lcdfreq_enable) { // reset display freq. to 60Hz only if it was enabled
-		dbs_tuners_ins.lcdfreq_enable = false;
-		lcdfreq_lock_current = 0;
-		_lcdfreq_lock(lcdfreq_lock_current);
-	}
-
   sampling_rate_awake = dbs_tuners_ins.sampling_rate;
   up_threshold_awake = dbs_tuners_ins.up_threshold;
   down_threshold_awake = dbs_tuners_ins.down_threshold;
@@ -1604,13 +1259,6 @@ static void powersave_early_suspend(struct early_suspend *handler)
 static void powersave_late_resume(struct early_suspend *handler)
 {
   mutex_lock(&dbs_mutex);
-  // ZZ: LCD Freq Scaling
-	dbs_tuners_ins.lcdfreq_enable = prev_lcdfreq_enable;
-	if(dbs_tuners_ins.lcdfreq_enable) { // restore display freq. only if it was enabled before suspend
-		lcdfreq_lock_current = prev_lcdfreq_lock_current;
-		_lcdfreq_lock(lcdfreq_lock_current);
-	}
-  
   dbs_tuners_ins.sampling_rate = sampling_rate_awake;		// ZZ: restore previous settings
   dbs_tuners_ins.up_threshold = up_threshold_awake;		// ZZ: restore previous settings
   dbs_tuners_ins.down_threshold = down_threshold_awake;		// ZZ: restore previous settings
@@ -1732,9 +1380,6 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 					   &dbs_attr_group);
 
         unregister_early_suspend(&_powersave_early_suspend);
-		// ZZ: LCDFreq Scaling
-		lcdfreq_lock_current = 0;
-		_lcdfreq_lock(lcdfreq_lock_current);
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
