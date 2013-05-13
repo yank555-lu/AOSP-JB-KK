@@ -3,7 +3,7 @@
  * Written by David Howells (dhowells@redhat.com).
  * Derived from arch/i386/kernel/semaphore.c
  *
- * Steal writing sem. Alex Shi <alex.shi@intel.com>
+ * Writer lock-stealing by Alex Shi <alex.shi@intel.com>
  */
 #include <linux/rwsem.h>
 #include <linux/sched.h>
@@ -74,7 +74,7 @@ __rwsem_do_wake(struct rw_semaphore *sem, int wake_type)
 		 */
 		goto out;
 
-	/* wake up the writing waiter and let the task grap sem */
+	/* Wake up the writing waiter and let the task grab the sem: */
 	wake_up_process(waiter->task);
 	goto out;
 
@@ -139,7 +139,7 @@ __rwsem_do_wake(struct rw_semaphore *sem, int wake_type)
 	return sem;
 }
 
-/* try to get write sem,  caller hold sem->wait_lock */
+/* Try to get write sem, caller holds sem->wait_lock: */
 static int try_get_writer_sem(struct rw_semaphore *sem,
 					struct rwsem_waiter *waiter)
 {
@@ -152,14 +152,14 @@ static int try_get_writer_sem(struct rw_semaphore *sem,
 		return 0;
 
 	adjustment = RWSEM_ACTIVE_WRITE_BIAS;
-	/* only one waiter in queue */
+	/* Only one waiter in the queue: */
 	if (fwaiter == waiter && waiter->list.next == &sem->wait_list)
 		adjustment -= RWSEM_WAITING_BIAS;
 
 try_again_write:
 	oldcount = rwsem_atomic_update(adjustment, sem) - adjustment;
 	if (!(oldcount & RWSEM_ACTIVE_MASK)) {
-		/* no active lock */
+		/* No active lock: */
 		struct task_struct *tsk = waiter->task;
 
 		list_del(&waiter->list);
@@ -219,14 +219,14 @@ rwsem_down_failed_common(struct rw_semaphore *sem,
 		if (!waiter.task)
 			break;
 
-		spin_lock_irq(&sem->wait_lock);
-		/* try to get the writer sem, may steal from the head writer */
+		raw_spin_lock_irq(&sem->wait_lock);
+		/* Try to get the writer sem, may steal from the head writer: */
 		if (flags == RWSEM_WAITING_FOR_WRITE)
 			if (try_get_writer_sem(sem, &waiter)) {
-				spin_unlock_irq(&sem->wait_lock);
+				raw_spin_unlock_irq(&sem->wait_lock);
 				return sem;
 			}
-		spin_unlock_irq(&sem->wait_lock);
+		raw_spin_unlock_irq(&sem->wait_lock);
 		schedule();
 		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 	}
