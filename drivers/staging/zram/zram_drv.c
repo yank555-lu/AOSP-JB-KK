@@ -334,22 +334,6 @@ static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
 	kunmap_atomic(cmem, KM_USER1);
 	kunmap_atomic(user_mem, KM_USER0);
 
-		/* Should NEVER happen. Return bio error if it does. */
-		if (unlikely(ret)) {
-			pr_err("Decompression failed! err=%d, page=%u\n",
-				ret, index);
-			zram_stat64_inc(zram, &zram->stats.failed_reads);
-			goto out;
-		}
-
-
-	/* Should NEVER happen. Return bio error if it does. */
-	if (unlikely(ret != LZO_E_OK)) {
-		pr_err("Decompression failed! err=%d, page=%u\n", ret, index);
-		zram_stat64_inc(zram, &zram->stats.failed_reads);
-		return ret;
-	}
-
 	flush_dcache_page(page);
 
 	return 0;
@@ -378,17 +362,12 @@ static int zram_read_before_write(struct zram *zram, char *mem, u32 index)
 		return 0;
 	}
 
-	ret = lzo1x_decompress_safe(cmem + sizeof(*zheader),
-				    xv_get_object_size(cmem) - sizeof(*zheader),
-				    mem, &clen);
-	kunmap_atomic(cmem, KM_USER0);
+		ret = DECOMPRESS(
+			cmem + sizeof(*zheader),
+			xv_get_object_size(cmem) - sizeof(*zheader),
+			mem, &clen);
 
-	/* Should NEVER happen. Return bio error if it does. */
-	if (unlikely(ret != LZO_E_OK)) {
-		pr_err("Decompression failed! err=%d, page=%u\n", ret, index);
-		zram_stat64_inc(zram, &zram->stats.failed_reads);
-		return ret;
-	}
+	kunmap_atomic(cmem, KM_USER0);
 
 	return 0;
 }
@@ -466,7 +445,6 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 			clen = PAGE_SIZE;
 			page_store = alloc_page(GFP_NOIO | __GFP_HIGHMEM);
 			if (unlikely(!page_store)) {
-				mutex_unlock(&zram->lock);
 				pr_info("Error allocating memory for "
 					"incompressible page: %u\n", index);
 				zram_stat64_inc(zram,
