@@ -80,32 +80,37 @@
  * Version 0.5 - performance and fixes
  *
  *	- completely reworked fast scaling functionality. now using a "line jump" logic instead of fixed freq "colums".
- *	  fast scaling now in 4 steps and 2 modes possible.
- *	- added support for "Dynamic Screen Frequency Scaling"
- *	  (originated by AndreiLux more info: http://forum.xda-developers.com/showpost.php?p=38499071&postcount=3)
- *      - re-enabled broken conservative sampling down factor functionality ("down skip" method).
- *	  (originated by Stratosk more info: upstream kernel 3.10rc1 - https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/log/?id=refs%2Ftags%2Fv3.10-rc1&qt=author&q=Stratos+Ka)
- *      - changed down threshold check to act like it should.
- *	  (originated by Stratosk more info: upstream kernel 3.10rc1 - https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/log/?id=refs%2Ftags%2Fv3.10-rc1&qt=author&q=Stratos+Ka)
- *      - implemented/ported "early demand" from ondemand governor.
- *	  (originated by Stratosk more info: http://www.semaphore.gr/80-latests/98-ondemand-early-demand)
- *      - implemented/ported "sampling down momentum" from ondemand governor.
- *	  (originated by Stratosk more info: http://www.semaphore.gr/80-latests/80-sampling-down-momentum)
- *      - modified some original conservative code parts regarding frequency scaling which should work better now.
- *	  (originated by DerTeufel1980: https://github.com/DerTeufel/android_kernel_samsung_smdk4412/commit/6bab622344c548be853db19adf28c3917896f0a0)
- *      - added the possibility to use sampling down momentum or conservative "down skip" method.
- *      - increased possible max sampling rate sleep multiplier to 4 and sampling down factor to 100000 accordingly to sampling down momentum implementation.
- *	- added frequency search limit for more efficient frequency searching in scaling "table" and for improving frequency "hard" and "soft" limit handling.
- *	- added cpu idle exit time handling like it is in lulzactive (again work from ktoonsez : https://github.com/ktoonsez/KT747-JB/commit/a5931bee6ea9e69f386a340229745da6f2443b78)
- *	  description in lulzactive governor: https://github.com/ktoonsez/KT747-JB/blob/a5931bee6ea9e69f386a340229745da6f2443b78/drivers/cpufreq/cpufreq_lulzactive.c
- *	- added overclocking frequencies up to 1800 mhz to scaling frequency tables.
- *	- fixed a little scaling step mistake in scaling frequency tables.
+ *	  fast scaling now in 4 steps and 2 modes possible (mode 1: only fast scaling up and mode2: fast scaling up/down)
+ *	- added support for "Dynamic Screen Frequency Scaling" (original implementation into zzmoove governor highly improved by Yank555)
+ *	  originated by AndreiLux more info: http://forum.xda-developers.com/showpost.php?p=38499071&postcount=3
+ *	- re-enabled broken conservative sampling down factor functionality ("down skip" method).
+ *	  originated by Stratosk - upstream kernel 3.10rc1:
+ *	  https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/log/?id=refs%2Ftags%2Fv3.10-rc1&qt=author&q=Stratos+Ka
+ *	- changed down threshold check to act like it should.
+ *	  originated by Stratosk - upstream kernel 3.10rc1:
+ *	  https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/log/?id=refs%2Ftags%2Fv3.10-rc1&qt=author&q=Stratos+Ka
+ *	- implemented/ported "early demand" from ondemand governor.
+ *	  originated by Stratosk - more info: http://www.semaphore.gr/80-latests/98-ondemand-early-demand
+ *	- implemented/ported "sampling down momentum" from ondemand governor.
+ *	  originated by Stratosk - more info: http://www.semaphore.gr/80-latests/80-sampling-down-momentum
+ *	- modified some original conservative code parts regarding frequency scaling which should work better now.
+ *	  originated by DerTeufel1980: https://github.com/DerTeufel/android_kernel_samsung_smdk4412/commit/6bab622344c548be853db19adf28c3917896f0a0
+ *	- added the possibility to use sampling down momentum or conservative "down skip" method.
+ *	- increased possible max sampling rate sleep multiplier to 4 and sampling down factor to 100000 
+ *	  accordingly to sampling down momentum implementation.
+ *	- added frequency search limit for more efficient frequency searching in scaling "table" and for improving 
+ *	  frequency "hard" and "soft" limit handling.
+ *	- added cpu idle exit time handling like it is in lulzactive 
+ *	  again work from ktoonsez : https://github.com/ktoonsez/KT747-JB/commit/a5931bee6ea9e69f386a340229745da6f2443b78
+ *	  description in lulzactive governor:
+ *	  https://github.com/ktoonsez/KT747-JB/blob/a5931bee6ea9e69f386a340229745da6f2443b78/drivers/cpufreq/cpufreq_lulzactive.c
+ *	- fixed a little scaling step mistake and added overclocking frequencies up to 1800 mhz in scaling frequency "tables".
  *	- fixed possible freezes during start/stop/reload of governor and frequency limit change.
  *	- fixed hotplugging logic at online core 0+3 or 0+2 situations and improved hotplugging in general by
  *	  removing mutex locks and skipping hotplugging when it is not needed.
- *	- added possibility to disable hotplugging (that's a debugging relict but i thought maybe someone will find that usefull)
+ *	- added possibility to disable hotplugging (that's a debugging relict but i thought maybe someone will find that usefull so i didn't remove it)
  *	- try to fix lags when coming from suspend if hotplug limitation at sleep was active by enabling all offline cores during resume.
- *	- obligatoric code cleaning and documentation.
+ *	- code cleaning and documentation.
  *
  *	  for this functions following new tuneables were indroduced:
  *	
@@ -113,61 +118,63 @@
  *	  -------------
  *	  early_demand			-> switch to enable/disable early demand functionality (possible values 0 disable or 1 enable, default: 0)
  *	  grad_up_threshold		-> scale up frequency if the load goes up in one step of grad up value (possible range from 11 to 100, default 50)
- *	                                   little example for understanding: when the load rises up for example in one big 50% step then the
+ *	                                   little example for understanding: when the load rises up in one big 50% step then the
  *	                                   frequency will be scaled up immediately instead of wating till up_threshold is reached.
  *	
  *	  Fast Scaling (improved):
- *	  -----------------------
- *	  fast scaling has now 8 levels which at the same time have 2 modes included. Values from 1-4 equals to scaling jumps in the frequency table
- *	  and uses the Fast Scaling up but normal scaling down mode. Values from 5-8 equals to 1-4 scaling jumps but uses the fast scaling up and fast 
+ *	  ------------------------
+ *	  Fast scaling has now 8 levels which at the same time have 2 modes included. Values from 1-4 equals to scaling jumps in the frequency table
+ *	  and uses the Fast Scaling up but normal scaling down mode. Values from 5-8 equals to 1-4 scaling jumps but uses the fast scaling up and fast
  *	  scaling down mode.
  *
- *	  Hotplugging:
- *	  ------------
+ *	  Hotplugging switch:
+ *	  -------------------
  *	  disable_hotplug		-> switch to enable/disable hotplugging (possible values are any value above 0 to disable hotplugging and 0 to
  *	                                   enable it, default 0)
  *
- *	  Sampling Down Factor and Sampling Down Momentun:
+ *	  Sampling Down Factor and Sampling Down Momentum:
  *	  ------------------------------------------------
  *	  Description: From the original author of ondemand_sampling_factor David Niemi:
  *	  "This improves performance by reducing the overhead of load evaluation and helping the CPU stay
  *	  at its top speed when truly busy, rather than shifting back and forth in speed."
  *	
- *	  And that "Sampling Down Momentum" function from stratosk does this dynamicly in addition now! ;)
+ *	  And that "Sampling Down Momentum" function from stratosk does this dynamicly now! ;)
  *
  *	  sampling_down_max_momentum		-> max sampling down factor which should be set by momentum (0 disable momentum, possible range from
  *	                                           sampling_down_factor up to MAX_SAMPLING_DOWN_FACTOR, default 0 disabled)
  *	  sampling_down_momentum_sensitivity 	-> how fast the sampling down factor should be switched (possible values from 1 to 500, default 50)
  *	  sampling_down_factor			-> depending on which mode is active the factor for sampling rate multiplier which influences the whole
- *	                                           sampling rate or the value for stock "down skip" functionality which influences only the down scaling mechanism
- *	                                           (possible values are from 1 to MAX_SMPLING_DOWN_FACTOR, default 1 disabled)
+ *	                                           sampling rate or the value for stock "down skip" functionality which influences only the down scaling 
+ *	                                           mechanism (possible values are from 1 to MAX_SMPLING_DOWN_FACTOR, default 1 disabled)
  *	
- *	  original conservative "down skip" stock method can be enabled by setting the momentum tuneable to 0. so if momentum is inactive there will be a fallback to
- *	  the stock method. as the name "down skip" says this method works "slightly" different from the ondemand stock sampling down method. it just skips the
- *	  scaling down code for the given samples. if u want to completely disable the sampling down functionality u can achieve this by setting sampling down factor to 1.
- *	  so concluded: setting sampling_down_momentum = 0 and sampling_down_factor = 1 will disable sampling down completely (that is also the gov default setting)
+ *	  Original conservative "down skip" or "stock" method can be enabled by setting the momentum tuneable to 0. so if momentum is inactive there will 
+ *	  be a fallback to the stock method. as the name "down skip" says this method works "slightly" different from the ondemand stock sampling down method 
+ *	  (on which momentum was based on). It just skips the scaling down code for the given samples. if u want to completely disable the sampling down 
+ *	  functionality u can achieve this by setting sampling down factor to 1. so concluded: setting sampling_down_momentum = 0 and sampling_down_factor = 1 
+ *	  will disable sampling down completely (that is also the governor default setting)
  *
  *	  Dynamic Screen Frequency Scaling:
  *	  --------------------------------
  *
- *	  for compiling and enabling this functionality u have to do some more modification to the kernel source, please take a look at AndreiLux Perseus
+ *	  Dynamicly switches the screen frequency to 40hz or 60hz depending on cpu scaling and hotplug settings.
+ *	  For compiling and enabling this functionality u have to do some more modification to the kernel sources, please take a look at AndreiLux Perseus
  *	  repository and there at following commit: https://github.com/AndreiLux/Perseus-S3/commit/3476799587d93189a091ba1db26a36603ee43519
- *	  after adding this patch u can enable the feature by setting "CPU_FREQ_LCD_FREQ_DFS=y" in your kernel config and if u want to check if it is
+ *	  After adding this patch u can enable the feature by setting "CPU_FREQ_LCD_FREQ_DFS=y" in your kernel config and if u want to check if it is
  *	  really working at runtime u can also enable the accounting which AndreiLux added by setting LCD_FREQ_SWITCH_ACCOUNTING=y in the kernel config.
- *	  if all goes well and u have the DFS up and running u can use following tuneables to do some magic ;)
- *	  (thx to Yank555 for highly improving this!)
+ *	  If all goes well and u have the DFS up and running u can use following tuneables to do some screen magic:
+ *	  (thx to Yank555 for highly extend and improving this!)
  *	
  *	  lcdfreq_enable		-> to enable/disable LCDFreq scaling (possible values 0 disable or 1 enable, default: 0)
- *	  lcdfreq_kick_in_down_delay	-> the amount of samples to wait below the threshold frequency before entering low display frequency mode
- *	  lcdfreq_kick_in_up_delay	-> the amount of samples to wait over the threshold frequency before entering high display frequency mode
+ *	  lcdfreq_kick_in_down_delay	-> the amount of samples to wait below the threshold frequency before entering low display frequency mode (40hz)
+ *	  lcdfreq_kick_in_up_delay	-> the amount of samples to wait over the threshold frequency before entering high display frequency mode (60hz)
  *	  lcdfreq_kick_in_freq		-> the frequency threshold - below this cpu frequency the low display frequency will be active
- *	  lcdfreq_kick_in_cores		-> the number of cores which should be online before kick-in will be active. (also useable in combination
+ *	  lcdfreq_kick_in_cores		-> the number of cores which should be online before switching will be active. (also useable in combination
  *	                                   with kickin_freq)
  *
- *        sooo this version is a kind of "featured by" release as i took (again *g*) some ideas and work from other projects and even some of that work
- *        comes directly from other devs so i wanna thank and give credits:
+ *	  So this version is a kind of "featured by" release as i took (again *g*) some ideas and work from other projects and even some of that work
+ *	  comes directly from other devs so i wanna thank and give credits:
  *
- *	  Fist of all to stratosk for his great work "sampling down momentum" and "early demand" and for all the code fixes which found their way into
+ *	  First of all to stratosk for his great work "sampling down momentum" and "early demand" and for all the code fixes which found their way into
  *	  the upstream kernel version of conservative governor! congrats and props on that stratos, happy to see such a nice and talented dev directly
  *	  contibuting to the upstream kernel, that is a real enrichment for all of us!
  *
@@ -175,10 +182,10 @@
  *	  rudimentary implementation of Dynamic Screen Frequency Scaling from AndreiLux (credits for the idea/work also to him at this point!).
  *	
  *	  Third to DerTeufel1980 for his first implementation of stratosk's early demand functionality into version 0.3 of zzmoove governor
- *	  (even though i had to modify the original implementation a "little bit" to get it working properly *g*) and for some code optimizations/fixes
+ *	  (even though i had to modify the original implementation a "little bit" to get it working properly ;)) and for some code optimizations/fixes
  *	  regarding scaling.
  *	
- *	  Last but not least again to ktoonsez - I cherry picked again some code parts of his ktoonservative governor which should improve this governor
+ *	  Last but not least again to ktoonsez - I "cherry picked" again some code parts of his ktoonservative governor which should improve this governor
  *	  too.
  *
  *---------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -465,7 +472,7 @@ static struct dbs_tuners {
  * Table modified for use with Samsung I9300 by ZaneZam November 2012
  * zzmoove v0.3 - table modified to reach overclocking frequencies up to 1600mhz
  * zzmoove v0.4 - added fast scaling columns to frequency table
- * zzmoove v0.5 - removed fast scaling colums and use line jumps instead. 4 steps and 2 modes (with/without fast downscaling) possible now
+ * zzmoove v0.5 - removed fast scaling colums and use line jumps instead. 4 steps and 2 modes possible now (with/without fast downscaling)
  *                table modified to reach overclocking frequencies up to 1800mhz
  *                fixed wrong frequency stepping
  *                added search limit for more efficent frequency searching and better hard/softlimit handling
@@ -495,7 +502,7 @@ static int mn_freqs[17][3]={
  * Table modified for use with Samsung I9300 by ZaneZam November 2012
  * zzmoove v0.3 - table modified to reach overclocking frequencies up to 1600mhz
  * zzmoove v0.4 - added fast scaling columns to frequency table
- * zzmoove v0.5 - removed fast scaling colums and use line jumps instead. 4 steps and 2 modes (with/without fast downscaling) possible now
+ * zzmoove v0.5 - removed fast scaling colums and use line jumps instead. 4 steps and 2 modes possible now (with/without fast downscaling)
  *                table modified to reach overclocking frequencies up to 1800mhz
  *                fixed wrong frequency stepping
  *                added search limit for more efficent frequency searching and better hard/softlimit handling
@@ -1509,7 +1516,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	}
 
 	/*
-	 * ZZ: reduction of possible deadlocks - we try here to avoid deadlocks due to double locking from hotplugging and timer mutexes
+	 * ZZ: reduction of possible deadlocks - we try here to avoid deadlocks due to double locking from hotplugging and timer mutex
 	 * during start/stop/limit events. to be "sure" we skip here 25 times till the locks hopefully are unlocked again. yeah that's dirty
 	 * but no better way found yet! ;)
 	 */
@@ -1535,7 +1542,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * zzmoove v0.2 - changed hotplug logic to be able to tune up threshold per core and to be able to set
 	 *                cores offline manually via sysfs
 	 *
-	 * zzmoove v0.5 - fixed non switching cores at 0+1 and 0+3 situations
+	 * zzmoove v0.5 - fixed non switching cores at 0+2 and 0+3 situations
 	 *              - optimized hotplug logic by removing locks and skipping hotplugging if not needed
 	 *              - try to avoid deadlocks at critical events by using a flag if we are in the middle of hotplug decision
 	 */
@@ -1700,7 +1707,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 *
 	 * zzmoove v0.2 - changed logic to be able to tune down threshold per core via sysfs
 	 *
-	 * zzmoove v0.5 - fixed non switching cores at 0+1 and 0+3 situations
+	 * zzmoove v0.5 - fixed non switching cores at 0+2 and 0+3 situations
 	 *              - optimized hotplug logic by removing locks and skipping hotplugging if not needed
 	 *              - try to avoid deadlocks at critical events by using a flag if we are in the middle of hotplug decision
 	 */
@@ -2217,7 +2224,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 
 	case CPUFREQ_GOV_STOP:
 		skip_hotplug_flag = 1; 			// ZZ: disable hotplugging during stop to avoid deadlocks if we are in the hotplugging logic
-		this_dbs_info->check_cpu_skip = 1;	// ZZ: and to be sure we disable cpu_check also on next 25 samples
+		this_dbs_info->check_cpu_skip = 1;	// ZZ: and we disable cpu_check also on next 25 samples
 		for (i = 0; i < 1000; i++);		// ZZ: wait a few samples to be sure hotplugging is off (never be sure so this is dirty)
 
 		dbs_timer_exit(this_dbs_info);
@@ -2257,11 +2264,11 @@ if (dbs_tuners_ins.lcdfreq_enable == true) {
 		for (i = 0; i < 1000; i++);		// ZZ: wait a few samples to be sure hotplugging is off (never be sure so this is dirty)
 		/*
 		 * ZZ: we really want to do this limit update but here are deadlocks possible if hotplugging locks are active, so if we are about
-		 * to chrash skip the whole freq limit change attempt by using mutex_trylock instead of mutex_lock.
-		 * so now this is a real fix but on the other hand it could also avoid limit changes so we keep all other workarounds
-		 * to reduce the chance of such a situation!
+		 * to crash skip the whole freq limit change attempt by using mutex_trylock instead of mutex_lock.
+		 * so now this is a real fix but on the other hand it could also avoid limit changes so we keep all the other workarounds
+		 * to reduce the chance of such situations!
 		 */
-		if (mutex_trylock(&this_dbs_info->timer_mutex)) { 
+		if (mutex_trylock(&this_dbs_info->timer_mutex)) {
 		if (policy->max < this_dbs_info->cur_policy->cur)
 			__cpufreq_driver_target(
 					this_dbs_info->cur_policy,
@@ -2292,7 +2299,7 @@ if (dbs_tuners_ins.lcdfreq_enable == true) {
 			    if (policy->max <= dbs_tuners_ins.freq_limit) 	// ZZ: check limit
 			    dbs_tuners_ins.freq_limit = 0;			// ZZ: and delete active limit if it is under hard limit
 			    if (policy->max <= dbs_tuners_ins.freq_limit_sleep) // ZZ: check sleep limit
-				dbs_tuners_ins.freq_limit_sleep = 0;		// ZZ: if we would go also under this soft limits delete it too
+				dbs_tuners_ins.freq_limit_sleep = 0;		// ZZ: if we would go also under this soft limit delete it also
 		} else if (max_scaling_freq_soft > max_scaling_freq_hard && dbs_tuners_ins.freq_limit == 0) {
 			    max_scaling_freq_soft = max_scaling_freq_hard; 	// ZZ: if no limit is set and new limit has a higher number than soft (freq lower than limit) then set back to hard max limit value
 			} 							// ZZ: if nothing applies then leave search range as it is (in case of soft limit most likely)
