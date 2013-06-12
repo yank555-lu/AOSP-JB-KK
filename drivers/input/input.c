@@ -27,6 +27,7 @@
 #include <linux/mutex.h>
 #include <linux/rcupdate.h>
 #include "input-compat.h"
+#include <linux/telephony.h>
 
 #ifdef CONFIG_TOUCH_WAKE
 #include <linux/touch_wake.h>
@@ -289,7 +290,7 @@ static int input_get_disposition(struct input_dev *dev,
 		if (is_event_supported(code, dev->keybit, KEY_MAX) &&
 		    !!test_bit(code, dev->key) != value) {
 #ifdef CONFIG_TOUCH_WAKE
-      if (code == KEY_POWER && !device_is_suspended()) {
+      if (code == KEY_POWER && !device_is_suspended() && !PSTN_ON_HOOK) {
         if (value == 1) {
           powerkey_pressed();
         }
