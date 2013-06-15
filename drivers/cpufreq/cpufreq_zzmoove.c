@@ -1109,7 +1109,7 @@ static ssize_t store_freq_limit(struct kobject *a,
 	}
 	
         for (i=0; i<17; i++) {
-	    if (input == valid_freq[i] && i > max_scaling_freq_hard) { 	// ZZ: check if we would go over scaling hard limit, if so drop input
+	    if (input == valid_freq[i] && i >= max_scaling_freq_hard) { // ZZ: check if we would go over scaling hard limit, if so drop input
 		dbs_tuners_ins.freq_limit = input;			// ZZ: if we are under max hard limit accept input
 		if (i > max_scaling_freq_soft) {			// ZZ: check if we have to adjust actual scaling range because we use a lower frequency now
 		    max_scaling_freq_soft = i;				// ZZ: if so set it to new soft limit
@@ -1137,7 +1137,7 @@ static ssize_t store_freq_limit_sleep(struct kobject *a,
 		return -EINVAL;
 
         for (i=0; i<17; i++) {
-	    if ((input == valid_freq[i] && i > max_scaling_freq_hard) || input == 0) {
+	    if ((input == valid_freq[i] && i >= max_scaling_freq_hard) || input == 0) {
 		dbs_tuners_ins.freq_limit_sleep = input;
 	    return count;
 	    }
@@ -1260,7 +1260,7 @@ static ssize_t store_lcdfreq_kick_in_freq(struct kobject *a, struct attribute *b
 		return -EINVAL;
 
         for (i=0; i<17; i++) {
-	    if ((input == valid_freq[i] && i > max_scaling_freq_hard) || input == 0) {
+	    if ((input == valid_freq[i] && i >= max_scaling_freq_hard) || input == 0) {
 		dbs_tuners_ins.lcdfreq_kick_in_freq = input;
 	    return count;
 	    }
