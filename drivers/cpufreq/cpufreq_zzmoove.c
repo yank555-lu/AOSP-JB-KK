@@ -513,14 +513,11 @@ static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned 
 
 		if(curfreq == mn_freqs[i][MN_FREQ]) {
 
-			if(i != 0 && i != freq_table_size) {
+			if(updown == MN_UP)	// Yank : Scaling up
+				return mn_freqs[max(              1, i - scaling_mode_up  )][target];	// ZZ: we don't want to jump out of the array if we do fs scaling
+			else			// Yank : Scaling down
+				return mn_freqs[min(freq_table_size, i + scaling_mode_down)][target];	// ZZ: we don't want to jump out of the array if we do fs scaling
 
-				if(updown == MN_UP) // Yank : Scaling up
-					return mn_freqs[max(              1, i - scaling_mode_up  )][target];	// ZZ: we don't want to jump out of the array if we do fs scaling
-				else // Yank : Scaling down
-					return mn_freqs[min(freq_table_size, i + scaling_mode_down)][target];	// ZZ: we don't want to jump out of the array if we do fs scaling
-
-			}
 			return (curfreq);	// Yank : We should never get here...
 		}
 
