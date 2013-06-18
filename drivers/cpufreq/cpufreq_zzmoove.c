@@ -1491,11 +1491,11 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	switch_core = 0;
 	for (i = 1; i < num_possible_cpus(); i++) {
 		if (skip_hotplug_flag == 0) {
-		    if (i == 1 && max_load > dbs_tuners_ins.up_threshold_hotplug1) {
+		    if (i == 1 && dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1) {
 			switch_core = 1;
-		    } else if (i == 2 && max_load > dbs_tuners_ins.up_threshold_hotplug2) {
+		    } else if (i == 2 && dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2) {
 			switch_core = 2;
-		    } else if (i == 3 && max_load > dbs_tuners_ins.up_threshold_hotplug3) {
+		    } else if (i == 3 && dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3) {
 		        switch_core = 3;
 		    }
 		if (!cpu_online(switch_core) && switch_core != 0)
