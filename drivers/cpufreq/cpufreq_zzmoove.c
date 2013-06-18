@@ -1373,7 +1373,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	int boost_freq = 0; 					// ZZ: Early demand boost freq switch
 	struct cpufreq_policy *policy;
 	unsigned int j;
-
+	unsigned int switch_core = 0;
+	int i=0;
+	
 	policy = this_dbs_info->cur_policy;
 
 	/*
@@ -1484,35 +1486,53 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 *              - optimized hotplug logic by removing locks and skipping hotplugging if not needed
 	 *              - try to avoid deadlocks at critical events by using a flag if we are in the middle of hotplug decision
 	 */
-	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != 4) {
-	    if (num_online_cpus() < 2) {
-		if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1 && skip_hotplug_flag == 0 && !cpu_online(1))
-		    cpu_up(1);
-		if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2 && skip_hotplug_flag == 0 && !cpu_online(2))
-		    cpu_up(2);
-		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
-		    cpu_up(3);
-	    } else if (num_online_cpus() < 3 && cpu_online(3)) {
-		if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1 && skip_hotplug_flag == 0 && !cpu_online(1))
-		    cpu_up(1);
-		if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2 && skip_hotplug_flag == 0 && !cpu_online(2))
-		    cpu_up(2);
-	    } else if (num_online_cpus() < 3 && cpu_online(2)) {
-		if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1 && skip_hotplug_flag == 0 && !cpu_online(1))
-		    cpu_up(1);
-		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
-		    cpu_up(3);
-	    } else if (num_online_cpus() < 3) {
-		if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2 && skip_hotplug_flag == 0 && !cpu_online(2))
-		    cpu_up(2);
-		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
-		    cpu_up(3);
-	    } else if (num_online_cpus() < 4) {
-		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
-		    cpu_up(3);
-	    }
+
+	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != num_possible_cpus()) {
+	switch_core = 0;
+	for (i = 1; i < num_possible_cpus(); i++) {
+		if (skip_hotplug_flag == 0) {
+		    if (i == 1 && max_load > dbs_tuners_ins.up_threshold_hotplug1) {
+			switch_core = 1;
+		    } else if (i == 2 && max_load > dbs_tuners_ins.up_threshold_hotplug2) {
+			switch_core = 2;
+		    } else if (i == 3 && max_load > dbs_tuners_ins.up_threshold_hotplug3) {
+		        switch_core = 3;
+		    }
+		if (!cpu_online(switch_core) && switch_core != 0)
+		cpu_up(switch_core);
+		}
 	}
-	
+    }
+/*	
+*	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != 4) {
+*	    if (num_online_cpus() < 2) {
+*		if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1 && skip_hotplug_flag == 0 && !cpu_online(1))
+*		    cpu_up(1);
+*		if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2 && skip_hotplug_flag == 0 && !cpu_online(2))
+*		    cpu_up(2);
+*		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
+*		    cpu_up(3);
+*	    } else if (num_online_cpus() < 3 && cpu_online(3)) {
+*		if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1 && skip_hotplug_flag == 0 && !cpu_online(1))
+*		    cpu_up(1);
+*		if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2 && skip_hotplug_flag == 0 && !cpu_online(2))
+*		    cpu_up(2);
+*	    } else if (num_online_cpus() < 3 && cpu_online(2)) {
+*		if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1 && skip_hotplug_flag == 0 && !cpu_online(1))
+*		    cpu_up(1);
+*		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
+*		    cpu_up(3);
+*	    } else if (num_online_cpus() < 3) {
+*		if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2 && skip_hotplug_flag == 0 && !cpu_online(2))
+*		    cpu_up(2);
+*		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
+*		    cpu_up(3);
+*	    } else if (num_online_cpus() < 4) {
+*		if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3 && skip_hotplug_flag == 0 && !cpu_online(3))
+*		    cpu_up(3);
+*	    }
+*	}
+*/	
 	/* Check for frequency increase */
 	if (max_load > dbs_tuners_ins.up_threshold || boost_freq) { // ZZ: Early demand - added boost switch
 	
@@ -1651,29 +1671,47 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 */
 
 	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != 1) {
-	    if (num_online_cpus() > 3) {
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug3 && skip_hotplug_flag == 0 && cpu_online(3))
-		cpu_down(3);
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug2 && skip_hotplug_flag == 0 && cpu_online(2))
-		cpu_down(2);
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug1 && skip_hotplug_flag == 0 && cpu_online(1))
-		cpu_down(1);
-	    } else if (num_online_cpus() > 2) {
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug2 && skip_hotplug_flag == 0 && cpu_online(2))
-		cpu_down(2);
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug1 && skip_hotplug_flag == 0 && cpu_online(1))
-		cpu_down(1);
-	    } else if (num_online_cpus() > 1 && cpu_online(2)) {
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug2 && skip_hotplug_flag == 0)
-		cpu_down(2);
-	    } else if (num_online_cpus() > 1 && cpu_online(3)) {
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug3 && skip_hotplug_flag == 0)
-		cpu_down(3);
-	    } else if (num_online_cpus() > 1) {
-		if (max_load < dbs_tuners_ins.down_threshold_hotplug1 && skip_hotplug_flag == 0 && cpu_online(1))
-		cpu_down(1);
-	    }
+	switch_core = 0;
+	for (i = 1; i < num_possible_cpus(); i++) {
+		if (skip_hotplug_flag == 0) {
+		    if (i == 3 && max_load < dbs_tuners_ins.down_threshold_hotplug3) {
+			switch_core = 3;
+		    } else if (i == 2 && max_load < dbs_tuners_ins.down_threshold_hotplug2) {
+			switch_core = 2;
+		    } else if (i == 1 && max_load < dbs_tuners_ins.down_threshold_hotplug1) {
+		        switch_core = 1;
+		    }
+		if (cpu_online(switch_core) && switch_core != 0)
+		cpu_down(switch_core);
+		}
 	}
+    }
+/*
+*	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != 1) {
+*	    if (num_online_cpus() > 3) {
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug3 && skip_hotplug_flag == 0 && cpu_online(3))
+*		cpu_down(3);
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug2 && skip_hotplug_flag == 0 && cpu_online(2))
+*		cpu_down(2);
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug1 && skip_hotplug_flag == 0 && cpu_online(1))
+*		cpu_down(1);
+*	    } else if (num_online_cpus() > 2) {
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug2 && skip_hotplug_flag == 0 && cpu_online(2))
+*		cpu_down(2);
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug1 && skip_hotplug_flag == 0 && cpu_online(1))
+*		cpu_down(1);
+*	    } else if (num_online_cpus() > 1 && cpu_online(2)) {
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug2 && skip_hotplug_flag == 0)
+*		cpu_down(2);
+*	    } else if (num_online_cpus() > 1 && cpu_online(3)) {
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug3 && skip_hotplug_flag == 0)
+*		cpu_down(3);
+*	    } else if (num_online_cpus() > 1) {
+*		if (max_load < dbs_tuners_ins.down_threshold_hotplug1 && skip_hotplug_flag == 0 && cpu_online(1))
+*		cpu_down(1);
+*	    }
+*	}
+*/
 
 	/* ZZ: Sampling down momentum - if momentum is inactive switch to down skip method and if sampling_down_factor is active break out early */
 	if (dbs_tuners_ins.sampling_down_max_mom == 0 && dbs_tuners_ins.sampling_down_factor > 1) {
@@ -1956,7 +1994,7 @@ static void powersave_early_suspend(struct early_suspend *handler)
 
 	for (i=0; i < freq_table_size; i++) {
 	if (freq_limit_asleep == mn_freqs[i][MN_FREQ] || freq_limit_asleep == 0) { 	// ZZ: check sleep frequency
-	    if (max_scaling_freq_soft < max_scaling_freq_hard) { 		// ZZ: if the scaling soft value at sleep is lower (freq is higher) than sclaing hard value
+	    if (max_scaling_freq_soft < max_scaling_freq_hard) { 		// ZZ: if the scaling soft value at sleep is lower (freq is higher) than scaling hard value
 		max_scaling_freq_soft = max_scaling_freq_hard; 			// ZZ: bring it down to scaling hard value as we cannot be over max hard scaling
 		break;
 	    } else if (max_scaling_freq_soft > max_scaling_freq_hard && dbs_tuners_ins.freq_limit == 0) { // ZZ: if the value is higher (freq is lower) than scaling hard value and no soft limit is active
@@ -2297,3 +2335,4 @@ fs_initcall(cpufreq_gov_dbs_init);
 module_init(cpufreq_gov_dbs_init);
 #endif
 module_exit(cpufreq_gov_dbs_exit);
+
