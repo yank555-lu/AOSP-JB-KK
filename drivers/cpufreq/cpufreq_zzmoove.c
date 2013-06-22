@@ -1917,9 +1917,7 @@ static inline void dbs_timer_init(struct cpu_dbs_info_s *dbs_info)
 static inline void dbs_timer_exit(struct cpu_dbs_info_s *dbs_info)
 {
 	dbs_info->enable = 0;
-	mutex_lock(&dbs_mutex);
 	cancel_delayed_work(&dbs_info->work); //ZZ: Use asyncronous mode to avoid freezes / reboots when leaving zzmoove
-	mutex_unlock(&dbs_mutex);
 }
 
 static void powersave_early_suspend(struct early_suspend *handler)
