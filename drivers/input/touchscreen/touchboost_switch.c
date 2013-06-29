@@ -1,6 +1,8 @@
 /*
  * Author: andip71, 10.01.2013
  *
+ * Added sysfs for touchboost frequency : Jean-Pierre Rasquin <yank555.lu@gmail.com>
+ *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -16,6 +18,8 @@
 #include <linux/device.h>
 #include <linux/miscdevice.h>
 
+#include <linux/cpufreq.h>
+
 #include "touchboost_switch.h"
 
 
@@ -24,6 +28,7 @@
 /*****************************************/
 
 int tb_switch = TOUCHBOOST_ON;
+int tb_freq = 800000;
 
 
 /*****************************************/
@@ -64,7 +69,42 @@ static ssize_t touchboost_switch_store(struct device *dev, struct device_attribu
 	return count;
 }
 
+static ssize_t touchboost_freq_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	// return value of current touchboost status
 
+	return sprintf(buf, "%d - Touchboost frequency\n", tb_freq);
+
+}
+
+
+static ssize_t touchboost_freq_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned int ret = -EINVAL;
+	unsigned int input = 0;
+	int i;
+	struct cpufreq_frequency_table *table;	// Yank : Use system frequency table
+
+	// read value from input buffer
+	ret = sscanf(buf, "%d", &input);
+
+	if (ret != 1)
+		return -EINVAL;
+
+	table = cpufreq_frequency_get_table(0);	// Yank : Get system frequency table
+
+	if (!table) {
+		return -EINVAL;
+	} else {
+		for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) // Yank : Allow only frequencies in the system table
+			if (table[i].frequency == input) {
+				tb_freq = input;
+				return count;
+			}
+	}
+	return -EINVAL;
+}
 
 /*****************************************/
 // Initialize touchboost switch sysfs
@@ -72,10 +112,12 @@ static ssize_t touchboost_switch_store(struct device *dev, struct device_attribu
 
 // define objects
 static DEVICE_ATTR(touchboost_switch, S_IRUGO | S_IWUGO, touchboost_switch_show, touchboost_switch_store);
+static DEVICE_ATTR(touchboost_freq  , S_IRUGO | S_IWUGO, touchboost_freq_show  , touchboost_freq_store  );
 
 // define attributes
 static struct attribute *touchboost_switch_attributes[] = {
 	&dev_attr_touchboost_switch.attr,
+	&dev_attr_touchboost_freq.attr,
 	NULL
 };
 
