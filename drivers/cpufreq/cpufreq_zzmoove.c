@@ -1267,8 +1267,8 @@ static ssize_t store_freq_limit(struct kobject *a,
 			if (table[i].frequency == input) {
 				max_scaling_freq_soft = i;
 				dbs_tuners_ins.freq_limit = input;
+				return count;
 			}
-			return count;
 	}
 
 	return -EINVAL;
@@ -1301,9 +1301,10 @@ static ssize_t store_freq_limit_sleep(struct kobject *a,
 		return -EINVAL;
 	} else {
 		for (i = max_scaling_freq_soft; (table[i].frequency != CPUFREQ_TABLE_END); i++) // Yank : Allow only frequencies below or equal to screen on limit
-			if (table[i].frequency == input)
+			if (table[i].frequency == input) {
 				dbs_tuners_ins.freq_limit_sleep = input;
-			return count;
+				return count;
+			}
 	}
 
 	return -EINVAL;
@@ -1430,9 +1431,10 @@ static ssize_t store_lcdfreq_kick_in_freq(struct kobject *a, struct attribute *b
 		return -EINVAL;
 	} else {
 		for (i = max_scaling_freq_soft; (table[i].frequency != CPUFREQ_TABLE_END); i++) // Yank : Allow only frequencies below or equal to screen on limit
-			if (table[i].frequency == input)
+			if (table[i].frequency == input) {
 				dbs_tuners_ins.lcdfreq_kick_in_freq = input;
-			return count;
+				return count;
+			}
 	}
 
 	return -EINVAL;
