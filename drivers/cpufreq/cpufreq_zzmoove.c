@@ -281,7 +281,7 @@ static int hotplug_thresholds[2][8]={
     };
 
 // ZZ: support for max 8 cores
-#define MAX_CORES		(8)
+#define MAX_CORES		(4)
 
 // raise sampling rate to SR*multiplier and adjust sampling rate/thresholds/hotplug/scaling/freq limit/freq step on blank screen
 
