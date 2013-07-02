@@ -19,6 +19,7 @@
 #include <linux/miscdevice.h>
 
 #include <linux/cpufreq.h>
+#include <mach/cpufreq.h>
 
 #include "touchboost_switch.h"
 
@@ -27,8 +28,9 @@
 // Global variables
 /*****************************************/
 
-int tb_switch = TOUCHBOOST_ON;
-int tb_freq = 800000;
+int tb_switch 	  = TOUCHBOOST_ON;
+int tb_freq	  = TOUCHBOOST_DEFAULT_FREQ;
+int tb_freq_level = TOUCHBOOST_FREQ_UNDEFINED;
 
 
 /*****************************************/
@@ -100,6 +102,9 @@ static ssize_t touchboost_freq_store(struct device *dev, struct device_attribute
 		for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) // Yank : Allow only frequencies in the system table
 			if (table[i].frequency == input) {
 				tb_freq = input;
+				ret = exynos_cpufreq_get_level(tb_freq, &tb_freq_level); // Yank : Get new frequency level
+				if (ret < 0)
+					pr_err("Touchboost switch : exynos_cpufreq_get_level error");
 				return count;
 			}
 	}
@@ -139,16 +144,25 @@ static struct miscdevice touchboost_switch_control_device = {
 
 static int touchboost_switch_init(void)
 {
+	int ret;
+
 	// register touchboost switch device
 	misc_register(&touchboost_switch_control_device);
 	if (sysfs_create_group(&touchboost_switch_control_device.this_device->kobj,
 				&touchboost_switch_control_group) < 0) {
-		printk("Boeffla-kernel: failed to create touchboost switch sys fs object.\n");
+		printk("Touchboost switch : failed to create touchboost switch sys fs object.\n");
 		return 0;
 	}
 
+	// Yank : Get startup frequency level if not yet defined
+	if (tb_freq_level == TOUCHBOOST_FREQ_UNDEFINED) {
+		ret = exynos_cpufreq_get_level(tb_freq, &tb_freq_level);
+		if (ret < 0)
+			pr_err("Touchboost switch : exynos_cpufreq_get_level error");
+	}
+
 	// Print debug info
-	printk("Boeffla-kernel: touchboost switch device initialized\n");
+	printk("Touchboost switch : device initialized\n");
 
 	return 0;
 }
@@ -161,7 +175,7 @@ static void touchboost_switch_exit(void)
                            &touchboost_switch_control_group);
 
 	// Print debug info
-	printk("Boeffla-kernel: touchboost switch device stopped\n");
+	printk("Touchboost switch : device stopped\n");
 }
 
 

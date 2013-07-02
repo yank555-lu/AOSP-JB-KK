@@ -16,6 +16,11 @@
 
 extern int tb_switch;
 extern int tb_freq;
+extern int tb_freq_level;
 
 #define TOUCHBOOST_OFF	0
 #define TOUCHBOOST_ON	1
+
+#define TOUCHBOOST_DEFAULT_FREQ 800000
+
+#define TOUCHBOOST_FREQ_UNDEFINED -1
