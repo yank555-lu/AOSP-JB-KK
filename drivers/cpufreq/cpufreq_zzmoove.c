@@ -11,7 +11,7 @@
  * published by the Free Software Foundation.
  *
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
- * - ZZMoove Governor v0.6 beta 3 by ZaneZam 2012/13 Changelog:                                                                                                                          -
+ * - ZZMoove Governor v0.6 beta 4 by ZaneZam 2012/13 Changelog:                                                                                                                          -
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
  *
  * Version 0.1 - first release
@@ -200,7 +200,8 @@
  *
  *	- removed fixed scaling lookup table and use system frequency table instead 
  *	  changed scaling logic accordingly for this modification. (thx and credits to Yank555)
- *	- reduced hotplug logic loop to a minimum.
+ *	- reduced hotplug logic loop to a minimum 
+ *	- try to fix stuck issues by using seperate hotplug functions out of dbs_check_cpu (credits to ktoonesz)
  *	- added support for 2 and 8 core systems and automatic detection of cores were it is needed. default is 4 cores
  *	  reduced fixed default hotplug thresholds to only one up/down default and use an array to hold all threshold values.
  *	- fixed some mistakes in "frequency tuneables" (Yank555):
@@ -277,6 +278,7 @@ static unsigned int suspend_flag = 0;			// ZZ: init value for suspend status. 1 
 static unsigned int skip_hotplug_flag = 1;		// ZZ: initial start without hotplugging to fix lockup issues
 static int scaling_mode_up;				// ZZ: fast scaling up mode holding up value during runtime
 static int scaling_mode_down;				// ZZ: fast scaling down mode holding down value during runtime
+static int cur_load;					// ZZ: current load for hotplugging work
 
 // ZZ: hotplug threshold array
 static int hotplug_thresholds[2][8]={
@@ -364,6 +366,9 @@ static unsigned int freq_step_asleep;			// ZZ: for setting freq step value on ea
 
 #define DEF_FAST_SCALING			(0)	// ZZ: default for tuneable fast_scaling
 #define DEF_FAST_SCALING_SLEEP			(0)	// ZZ: default for tuneable fast_scaling_sleep
+
+struct work_struct hotplug_offline_work;
+struct work_struct hotplug_online_work;
 
 static void do_dbs_timer(struct work_struct *work);
 
@@ -1650,7 +1655,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	int boost_freq = 0; 					// ZZ: Early demand boost freq switch
 	struct cpufreq_policy *policy;
 	unsigned int j;
-	int i=0;
+//	int i=0;
 	
 	policy = this_dbs_info->cur_policy;
 
@@ -1714,8 +1719,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 		load = 100 * (wall_time - idle_time) / wall_time;
 
-		if (load > max_load)
+		if (load > max_load) {
 			max_load = load;
+			cur_load = load; // ZZ: current load for hotplugging functions
+		}
 	/*
 	 * ZZ: Early demand by stratosk
 	 * Calculate the gradient of load_freq. If it is too steep we assume
@@ -1764,15 +1771,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * zzmoove v0.5.1b 	- optimised hotplug logic by reducing code and concentrating only on essential parts
 	 *                 	- preperation for automatic core detection
 	 *
-	 * zzmoove v0.6 	- reduced hotplug loop to a minimum
+	 * zzmoove v0.6		- reduced hotplug loop to a minimum and use seperate functions out of dbs_check_cpu for hotplug work (credits to ktoonsez)
 	 *
 	 */
 
 	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != num_possible_cpus()) {
-	for (i = 1; i < num_possible_cpus(); i++) {
-		if (!cpu_online(i) && skip_hotplug_flag == 0 && hotplug_thresholds[0][i-1] != 0 && max_load > hotplug_thresholds[0][i-1])
-			cpu_up(i);
-	    }
+	    if (policy->cur != policy->min)
+		    schedule_work_on(0, &hotplug_online_work);
 	}
 	
 	/* Check for frequency increase */
@@ -1900,6 +1905,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		}
 	}
 #endif
+
 	/*
 	 * zzmoove v0.1 	- Modification by ZaneZam November 2012
 	 *                	  Check for frequency decrease is lower than hotplug value and put cores to sleep accordingly
@@ -1914,16 +1920,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * zzmoove 0.5.1b 	- optimised hotplug logic by reducing code and concentrating only on essential parts
 	 *                	- preperation for automatic core detection
 	 *
-	 * zzmoove v0.6 	- reduced hotplug loop to a minimum.
+	 * zzmoove v0.6		- reduced hotplug loop to a minimum and use seperate functions out of dbs_check_cpu for hotplug work (credits to ktoonsez)
 	 *
 	 */
 
-	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != 1) {
-	for (i = num_possible_cpus() - 1; i >= 1; i--) {
-		if (cpu_online(i) && skip_hotplug_flag == 0 && max_load < hotplug_thresholds[1][i-1])
-		cpu_down(i);
-	    }
-	}
+	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != 1)
+		schedule_work_on(0, &hotplug_offline_work);
 
 	/* ZZ: Sampling down momentum - if momentum is inactive switch to down skip method and if sampling_down_factor is active break out early */
 	if (dbs_tuners_ins.sampling_down_max_mom == 0 && dbs_tuners_ins.sampling_down_factor > 1) {
@@ -2110,6 +2112,28 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
 					CPUFREQ_RELATION_L); // ZZ: changed to relation low
 		return;
+	}
+}
+
+// ZZ: added function for hotplug down work
+static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
+{
+	int i=0;
+	
+	for (i = num_possible_cpus() - 1; i >= 1; i--) {
+		if (cpu_online(i) && skip_hotplug_flag == 0 && cur_load < hotplug_thresholds[1][i-1])
+		cpu_down(i);
+	}
+}
+
+// ZZ: added function for hotplug up work
+static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
+{
+	int i=0;
+
+	for (i = 1; i < num_possible_cpus(); i++) {
+		if (!cpu_online(i) && skip_hotplug_flag == 0 && hotplug_thresholds[0][i-1] != 0 && cur_load > hotplug_thresholds[0][i-1])
+		cpu_up(i);
 	}
 }
 
@@ -2632,6 +2656,10 @@ static int __init cpufreq_gov_dbs_init(void) // ZZ: added idle exit time handlin
 	this_dbs_info->time_in_idle = 0;
 	this_dbs_info->idle_exit_time = 0;
     }
+    
+    INIT_WORK(&hotplug_offline_work, hotplug_offline_work_fn); // ZZ: init hotplug work
+    INIT_WORK(&hotplug_online_work, hotplug_online_work_fn); // ZZ: init hotplug work
+
 	return cpufreq_register_governor(&cpufreq_gov_zzmoove);
 }
 
