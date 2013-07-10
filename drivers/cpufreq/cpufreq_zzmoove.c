@@ -11,7 +11,7 @@
  * published by the Free Software Foundation.
  *
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
- * - ZZMoove Governor v0.6 beta 4 by ZaneZam 2012/13 Changelog:                                                                                                                          -
+ * - ZZMoove Governor v0.6 by ZaneZam 2012/13 Changelog:                                                                                                                          -
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
  *
  * Version 0.1 - first release
@@ -198,12 +198,13 @@
  *
  * Version 0.6 - flexibility (in cooperation with Yank555)
  *
- *	- removed fixed scaling lookup table and use system frequency table instead 
- *	  changed scaling logic accordingly for this modification. (thx and credits to Yank555)
- *	- reduced hotplug logic loop to a minimum 
- *	- try to fix stuck issues by using seperate hotplug functions out of dbs_check_cpu (credits to ktoonesz)
- *	- added support for 2 and 8 core systems and automatic detection of cores were it is needed. default is 4 cores
- *	  reduced fixed default hotplug thresholds to only one up/down default and use an array to hold all threshold values.
+ *	- removed fixed scaling lookup tables and use the system frequency table instead
+ *	  changed scaling logic accordingly for this modification (thx and credits to Yank555)
+ *	- reduced new hotplug logic loop to a minimum
+ *	- again try to fix stuck issues by using seperate hotplug functions out of dbs_check_cpu (credits to ktoonesz)
+ *	- added support for 2 and 8 core systems and added automatic detection of cores were it is needed
+ *	  (for setting the different core modes you can use the macro 'MAX_CORES'. possible values are: 2,4 or 8, default are 4 cores)
+ *	  reduced core threshold defaults to only one up/down default and use an array to hold all threshold values
  *	- fixed some mistakes in "frequency tuneables" (Yank555):
  *	  stop looping once the frequency has been found
  *	  return invalid error if new frequency is not found in the frequency table
@@ -237,9 +238,9 @@
 
 // ZZ: midnight and zzmoove default values
 #define DEF_FREQUENCY_UP_THRESHOLD		(70)
-#define DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG	(68)	// ZZ: default for hotplug up threshold for all cpu's (cpu0 stays allways on)
+#define DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG	(68)	// ZZ: default for hotplug up threshold for all cpus (cpu0 stays allways on)
 #define DEF_FREQUENCY_DOWN_THRESHOLD		(52)
-#define DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG	(55)	// ZZ: default for hotplug down threshold for all cpu's (cpu0 stays allways on)
+#define DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG	(55)	// ZZ: default for hotplug down threshold for all cpus (cpu0 stays allways on)
 #define DEF_IGNORE_NICE				(0)	// ZZ: default for ignore nice load
 #define DEF_FREQ_STEP				(5)	// ZZ: default for freq step at awake
 #define DEF_FREQ_STEP_SLEEP			(5)	// ZZ: default for freq step at early suspend
@@ -278,7 +279,9 @@ static unsigned int suspend_flag = 0;			// ZZ: init value for suspend status. 1 
 static unsigned int skip_hotplug_flag = 1;		// ZZ: initial start without hotplugging to fix lockup issues
 static int scaling_mode_up;				// ZZ: fast scaling up mode holding up value during runtime
 static int scaling_mode_down;				// ZZ: fast scaling down mode holding down value during runtime
-static int cur_load;					// ZZ: current load for hotplugging work
+
+// ZZ: current load for hotplugging work
+static int cur_load = 0;
 
 // ZZ: hotplug threshold array
 static int hotplug_thresholds[2][8]={
@@ -286,7 +289,7 @@ static int hotplug_thresholds[2][8]={
     {0,0,0,0,0,0,0,0}
     };
 
-// ZZ: support for 2,4 or 8 cores
+// ZZ: support for 2,4 or 8 cores (this will enable/disable hotplug threshold tuneables)
 #define MAX_CORES		(4)
 
 // raise sampling rate to SR*multiplier and adjust sampling rate/thresholds/hotplug/scaling/freq limit/freq step on blank screen
@@ -352,8 +355,8 @@ static unsigned int freq_step_asleep;			// ZZ: for setting freq step value on ea
 #define DEF_GRAD_UP_THRESHOLD			(25)	// ZZ: default for grad up threshold
 
 /*
-* ZZ: Frequency Limit: 0 do not limit frequency and use the full range up to cpufreq->max limit
-* values 200000 -> 1800000 khz
+* ZZ: Frequency Limit: 0 do not limit frequency and use the full range up to policy->max limit
+* values policy->min to policy->max in khz
 */
 
 #define DEF_FREQ_LIMIT				(0)	// ZZ: default for tuneable freq_limit
@@ -502,7 +505,7 @@ static struct dbs_tuners {
 	.fast_scaling_sleep = DEF_FAST_SCALING_SLEEP,				// ZZ: set default value for new tuneable
 	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,				// ZZ: Early demand default for grad up threshold
 	.early_demand = 0,							// ZZ: Early demand default off
-	.disable_hotplug = false,						// ZZ: Hotplug switch default off (hotplugging on)
+	.disable_hotplug = false,						// ZZ: Hotplug switch default off (=hotplugging on)
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 	.lcdfreq_enable = false,						// ZZ: LCDFreq Scaling default off
 	.lcdfreq_kick_in_down_delay = LCD_FREQ_KICK_IN_DOWN_DELAY,		// ZZ: LCDFreq Scaling default for down delay
@@ -518,14 +521,14 @@ unsigned int freq_table_size = 0;						// Yank : lowest frequency index in globa
 
 /**
  * Smooth scaling conservative governor (by Michael Weingaertner)
- * ------------------------------------------------------------------------- obsolete
+ * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
  * This modification makes the governor use two lookup tables holding
  * current, next and previous frequency to directly get a correct
  * target frequency instead of calculating target frequencies with
  * up_threshold and step_up %. The two scaling lookup tables used
  * contain different scaling steps/frequencies to achieve faster upscaling
  * on higher CPU load.
- * ------------------------------------------------------------------------- obsolete
+ * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
  * CPU load triggering faster upscaling can be adjusted via SYSFS,
  * VALUE between 1 and 100 (% CPU load):
  * echo VALUE > /sys/devices/system/cpu/cpufreq/zzmoove/smooth_up
@@ -537,6 +540,7 @@ unsigned int freq_table_size = 0;						// Yank : lowest frequency index in globa
 #define SCALE_FREQ_DOWN 2
 
 /*
+ * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
  * Table modified for use with Samsung I9300 by ZaneZam November 2012
  * zzmoove v0.3 	- table modified to reach overclocking frequencies up to 1600mhz
  * zzmoove v0.4 	- added fast scaling columns to frequency table
@@ -546,8 +550,10 @@ unsigned int freq_table_size = 0;						// Yank : lowest frequency index in globa
  *                	  added search limit for more efficent frequency searching and better hard/softlimit handling
  * zzmoove v0.5.1b 	- combination of power and normal scaling table to only one array (idea by Yank555)
  *                 	- scaling logic reworked and optimized by Yank555
- * zzmoove v0.6 	- removed lookup tables complete and use system frequency table instead (credits to Yank555)
+ * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
  *
+ * zzmoove v0.6 	- completely removed lookup tables and use the system frequency table instead 
+ *                        modified scaling logic accordingly (credits to Yank555)
  */
 
 static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
@@ -681,10 +687,10 @@ show_one(up_threshold_hotplug2, up_threshold_hotplug2);				// ZZ: added up_thres
 show_one(up_threshold_hotplug3, up_threshold_hotplug3);				// ZZ: added up_threshold_hotplug3 tuneable for cpu3
 #endif
 #if (MAX_CORES == 8)
-show_one(up_threshold_hotplug4, up_threshold_hotplug4);				// ZZ: added up_threshold_hotplug4 tuneable for cpu1
-show_one(up_threshold_hotplug5, up_threshold_hotplug5);				// ZZ: added up_threshold_hotplug5 tuneable for cpu2
-show_one(up_threshold_hotplug6, up_threshold_hotplug6);				// ZZ: added up_threshold_hotplug6 tuneable for cpu3
-show_one(up_threshold_hotplug7, up_threshold_hotplug7);				// ZZ: added up_threshold_hotplug7 tuneable for cpu3
+show_one(up_threshold_hotplug4, up_threshold_hotplug4);				// ZZ: added up_threshold_hotplug4 tuneable for cpu4
+show_one(up_threshold_hotplug5, up_threshold_hotplug5);				// ZZ: added up_threshold_hotplug5 tuneable for cpu5
+show_one(up_threshold_hotplug6, up_threshold_hotplug6);				// ZZ: added up_threshold_hotplug6 tuneable for cpu6
+show_one(up_threshold_hotplug7, up_threshold_hotplug7);				// ZZ: added up_threshold_hotplug7 tuneable for cpu7
 #endif
 show_one(down_threshold, down_threshold);
 show_one(down_threshold_sleep, down_threshold_sleep);				// ZZ: added down_threshold_sleep tuneable for early suspend
@@ -694,10 +700,10 @@ show_one(down_threshold_hotplug2, down_threshold_hotplug2);			// ZZ: added down_
 show_one(down_threshold_hotplug3, down_threshold_hotplug3);			// ZZ: added down_threshold_hotplug3 tuneable for cpu3
 #endif
 #if (MAX_CORES == 8)
-show_one(down_threshold_hotplug4, down_threshold_hotplug4);			// ZZ: added down_threshold_hotplug4 tuneable for cpu1
-show_one(down_threshold_hotplug5, down_threshold_hotplug5);			// ZZ: added down_threshold_hotplug5 tuneable for cpu2
-show_one(down_threshold_hotplug6, down_threshold_hotplug6);			// ZZ: added down_threshold_hotplug6 tuneable for cpu3
-show_one(down_threshold_hotplug7, down_threshold_hotplug7);			// ZZ: added down_threshold_hotplug7 tuneable for cpu3
+show_one(down_threshold_hotplug4, down_threshold_hotplug4);			// ZZ: added down_threshold_hotplug4 tuneable for cpu4
+show_one(down_threshold_hotplug5, down_threshold_hotplug5);			// ZZ: added down_threshold_hotplug5 tuneable for cpu5
+show_one(down_threshold_hotplug6, down_threshold_hotplug6);			// ZZ: added down_threshold_hotplug6 tuneable for cpu6
+show_one(down_threshold_hotplug7, down_threshold_hotplug7);			// ZZ: added down_threshold_hotplug7 tuneable for cpu7
 #endif
 show_one(ignore_nice_load, ignore_nice);
 show_one(freq_step, freq_step);
@@ -1655,7 +1661,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	int boost_freq = 0; 					// ZZ: Early demand boost freq switch
 	struct cpufreq_policy *policy;
 	unsigned int j;
-//	int i=0;
 	
 	policy = this_dbs_info->cur_policy;
 
@@ -1740,7 +1745,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	/*
 	 * ZZ: reduction of possible deadlocks - we try here to avoid deadlocks due to double locking from hotplugging and timer mutex
-	 * during start/stop/limit events. to be "sure" we skip here 25 times till the locks hopefully are unlocked again. yeah that's dirty
+	 * during start/stop/limit events. to be "sure" we skip here 15 times till the locks hopefully are unlocked again. yeah that's dirty
 	 * but no better way found yet! ;)
 	 */
 	if (this_dbs_info->check_cpu_skip != 0) {
@@ -2115,7 +2120,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	}
 }
 
-// ZZ: added function for hotplug down work
+// ZZ: function for hotplug down work
 static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 {
 	int i=0;
@@ -2126,7 +2131,7 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 	}
 }
 
-// ZZ: added function for hotplug up work
+// ZZ: function for hotplug up work
 static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
 {
 	int i=0;
@@ -2209,10 +2214,10 @@ static void powersave_early_suspend(struct early_suspend *handler)
 	hotplug3_awake = dbs_tuners_ins.up_threshold_hotplug3;		// ZZ: save hotplug3 value for restore on awake
 #endif
 #if (MAX_CORES == 8)
-	hotplug4_awake = dbs_tuners_ins.up_threshold_hotplug4;		// ZZ: save hotplug1 value for restore on awake
-	hotplug5_awake = dbs_tuners_ins.up_threshold_hotplug5;		// ZZ: save hotplug2 value for restore on awake
-	hotplug6_awake = dbs_tuners_ins.up_threshold_hotplug6;		// ZZ: save hotplug3 value for restore on awake
-	hotplug7_awake = dbs_tuners_ins.up_threshold_hotplug7;		// ZZ: save hotplug3 value for restore on awake
+	hotplug4_awake = dbs_tuners_ins.up_threshold_hotplug4;		// ZZ: save hotplug4 value for restore on awake
+	hotplug5_awake = dbs_tuners_ins.up_threshold_hotplug5;		// ZZ: save hotplug5 value for restore on awake
+	hotplug6_awake = dbs_tuners_ins.up_threshold_hotplug6;		// ZZ: save hotplug6 value for restore on awake
+	hotplug7_awake = dbs_tuners_ins.up_threshold_hotplug7;		// ZZ: save hotplug7 value for restore on awake
 #endif
 
   }
@@ -2547,7 +2552,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 
 	case CPUFREQ_GOV_STOP:
 		skip_hotplug_flag = 1; 			// ZZ: disable hotplugging during stop to avoid deadlocks if we are in the hotplugging logic
-		this_dbs_info->check_cpu_skip = 1;	// ZZ: and we disable cpu_check also on next 25 samples
+		this_dbs_info->check_cpu_skip = 1;	// ZZ: and we disable cpu_check also on next 15 samples
 		
 		mutex_lock(&dbs_mutex);			// ZZ: added for deadlock fix on governor stop
 		dbs_timer_exit(this_dbs_info);
@@ -2613,7 +2618,7 @@ if (dbs_tuners_ins.lcdfreq_enable == true) {
 		if (suspend_flag == 0) {
 		    for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) { 		// ZZ: trim search in scaling table
 			    if (policy->max == table[i].frequency) {
-				max_scaling_freq_hard = i; 	// ZZ: set new freq scaling number
+				max_scaling_freq_hard = i; 					// ZZ: set new freq scaling number
 				break;
 			    }
 		    }
@@ -2681,7 +2686,7 @@ MODULE_AUTHOR("Zane Zaminsky <cyxman@yahoo.com>");
 MODULE_DESCRIPTION("'cpufreq_zzmoove' - A dynamic cpufreq governor based "
 		"on smoove governor from Michael Weingaertner which was originally based on "
 		"cpufreq_conservative from Alexander Clouter. Optimized for use with Samsung I9300 "
-		"using frequency lookup tables and CPU hotplug - ported/modified for I9300 "
+		"using a fast scaling and CPU hotplug logic - ported/modified for I9300 "
 		"by ZaneZam November 2012/13");
 MODULE_LICENSE("GPL");
 
