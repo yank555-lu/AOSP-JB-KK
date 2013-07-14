@@ -154,10 +154,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #endif
 	int array_size = ARRAY_SIZE(lowmem_adj);
 #ifndef CONFIG_DMA_CMA
-	int other_free = global_page_state(NR_FREE_PAGES) - totalreserve_pages;
+	int other_free = global_page_state(NR_FREE_PAGES);
 #else
 	int other_free = global_page_state(NR_FREE_PAGES) -
-					global_page_state(NR_FREE_CMA_PAGES) - totalreserve_pages;
+					global_page_state(NR_FREE_CMA_PAGES);
 #endif
 	int other_file = global_page_state(NR_FILE_PAGES) -
 						global_page_state(NR_SHMEM);
