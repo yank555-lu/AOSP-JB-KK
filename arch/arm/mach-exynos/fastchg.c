@@ -76,7 +76,7 @@ static ssize_t force_fast_charge_store(struct kobject *kobj, struct kobj_attribu
 		case FAST_CHARGE_FORCE_AC:
 		case FAST_CHARGE_FORCE_CUSTOM_MA:		force_fast_charge = new_force_fast_charge;
 								return count;
-		default:					return count;
+		default:					return -EINVAL;
 	}
 }
 
@@ -130,11 +130,13 @@ static ssize_t ac_charge_level_store(struct kobject *kobj, struct kobj_attribute
 			case AC_CHARGE_1400:
 			case AC_CHARGE_1500:		ac_charge_level = new_ac_charge_level;
 							return count;
-			default:			return count;
+			default:			return -EINVAL;
 
 		}
 
 	}
+
+	return -EINVAL;
 
 }
 
@@ -188,10 +190,12 @@ static ssize_t usb_charge_level_store(struct kobject *kobj, struct kobj_attribut
 			case USB_CHARGE_900:
 			case USB_CHARGE_1000:		usb_charge_level = new_usb_charge_level;
 							return count;
-			default:			return count;
+			default:			return -EINVAL;
 		}
 
 	}
+
+	return -EINVAL;
 
 }
 
@@ -245,10 +249,12 @@ static ssize_t wireless_charge_level_store(struct kobject *kobj, struct kobj_att
 			case WIRELESS_CHARGE_900:
 			case WIRELESS_CHARGE_1000:	wireless_charge_level = new_wireless_charge_level;
 							return count;
-			default:			return count;
+			default:			return -EINVAL;
 		}
 
 	}
+
+	return -EINVAL;
 
 }
 
@@ -291,7 +297,7 @@ static ssize_t failsafe_store(struct kobject *kobj, struct kobj_attribute *attr,
 						return count;
 		case FAIL_SAFE_DISABLED:	failsafe = new_failsafe;
 						return count;
-		default:			return count;
+		default:			return -EINVAL;
 	}
 
 }
@@ -317,7 +323,7 @@ static ssize_t version_show(struct kobject *kobj, struct kobj_attribute *attr, c
 static ssize_t version_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
 /* no user change allowed */
-return count;
+return -EINVAL;
 }
 
 static struct kobj_attribute version_attribute =
