@@ -952,12 +952,9 @@ static int sec_touchkey_late_resume(struct early_suspend *h)
 
 	if (touchled_cmd_reversed) {
 		touchled_cmd_reversed = 0;
-		// Yank555.lu : touch_led_on_screen_touch : only accept feedback from touchscreen driver if enabled
-		if (touch_led_on_screen_touch == TOUCHKEY_LED_ENABLED) {
-			i2c_touchkey_write(tkey_i2c->client,
-				(u8 *) &touchkey_led_status, 1);
-			printk(KERN_DEBUG "[Touchkey] LED returned on\n");
-		}
+		i2c_touchkey_write(tkey_i2c->client,
+			(u8 *) &touchkey_led_status, 1);
+		printk(KERN_DEBUG "[Touchkey] LED returned on\n");
 	}
 #ifdef TEST_JIG_MODE
 	i2c_touchkey_write(tkey_i2c->client, &get_touch, 1);
