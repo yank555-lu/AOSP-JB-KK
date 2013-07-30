@@ -244,13 +244,15 @@
  */
 
 // ZZ: midnight and zzmoove default values
-#define DEF_FREQUENCY_UP_THRESHOLD		(70)
-#define DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG	(68)	// ZZ: default for hotplug up threshold for all cpus (cpu0 stays allways on)
-#define DEF_FREQUENCY_DOWN_THRESHOLD		(52)
-#define DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG	(55)	// ZZ: default for hotplug down threshold for all cpus (cpu0 stays allways on)
-#define DEF_IGNORE_NICE				(0)	// ZZ: default for ignore nice load
-#define DEF_FREQ_STEP				(5)	// ZZ: default for freq step at awake
-#define DEF_FREQ_STEP_SLEEP			(5)	// ZZ: default for freq step at early suspend
+#define DEF_FREQUENCY_UP_THRESHOLD		  (70)
+#define DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG	  (68)	// ZZ: default for hotplug up threshold for all cpus (cpu0 stays allways on)
+#define DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ   (0) 	// Yank: default for hotplug up threshold frequency for all cpus (0 = disabled)
+#define DEF_FREQUENCY_DOWN_THRESHOLD		  (52)
+#define DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG	  (55)	// ZZ: default for hotplug down threshold for all cpus (cpu0 stays allways on)
+#define DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ (0) 	// Yank: default for hotplug down threshold frequency for all cpus (0 = disabled)
+#define DEF_IGNORE_NICE				  (0)	// ZZ: default for ignore nice load
+#define DEF_FREQ_STEP				  (5)	// ZZ: default for freq step at awake
+#define DEF_FREQ_STEP_SLEEP			  (5)	// ZZ: default for freq step at early suspend
 
 // ZZ: LCDFreq Scaling default values
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
@@ -288,17 +290,24 @@ static int scaling_mode_up;				// ZZ: fast scaling up mode holding up value duri
 static int scaling_mode_down;				// ZZ: fast scaling down mode holding down value during runtime
 
 // ZZ: added hotplug block cycles
-#define DEF_HOTPLUG_BLOCK_CYCLES		(22)
+#define DEF_HOTPLUG_BLOCK_CYCLES		(0)
 #define DEF_HOTPLUG_IDLE_THRESHOLD		(0)
 static unsigned int hotplug_idle_flag = 0;
 static unsigned int hotplug_down_block_cycles = 0;
 static unsigned int hotplug_up_block_cycles = 0;
 
-// ZZ: current load for hotplugging work
+// ZZ: current load & freq. for hotplugging work
 static int cur_load = 0;
+static int cur_freq = 0;
 
 // ZZ: hotplug threshold array
 static int hotplug_thresholds[2][8]={
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0}
+    };
+
+// ZZ: hotplug threshold frequencies array
+static int hotplug_thresholds_freq[2][8]={
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0}
     };
@@ -430,26 +439,42 @@ static struct dbs_tuners {
 	unsigned int sampling_down_mom_sens;		// ZZ: Sampling down momentum sensitivity
 	unsigned int up_threshold;
 	unsigned int up_threshold_hotplug1;		// ZZ: added tuneable up_threshold_hotplug1 for core1
+	unsigned int up_threshold_hotplug_freq1;	// Yank: added tuneable up_threshold_hotplug_freq1 for core1
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 	unsigned int up_threshold_hotplug2;		// ZZ: added tuneable up_threshold_hotplug2 for core2
+	unsigned int up_threshold_hotplug_freq2;	// Yank: added tuneable up_threshold_hotplug_freq1 for core2
 	unsigned int up_threshold_hotplug3;		// ZZ: added tuneable up_threshold_hotplug3 for core3
+	unsigned int up_threshold_hotplug_freq3;	// Yank: added tuneable up_threshold_hotplug_freq1 for core3
 #endif
 #if (MAX_CORES == 8)
 	unsigned int up_threshold_hotplug4;		// ZZ: added tuneable up_threshold_hotplug4 for core4
+	unsigned int up_threshold_hotplug_freq4;	// Yank: added tuneable up_threshold_hotplug_freq1 for core4
 	unsigned int up_threshold_hotplug5;		// ZZ: added tuneable up_threshold_hotplug5 for core5
+	unsigned int up_threshold_hotplug_freq5;	// Yank: added tuneable up_threshold_hotplug_freq1 for core5
 	unsigned int up_threshold_hotplug6;		// ZZ: added tuneable up_threshold_hotplug6 for core6
+	unsigned int up_threshold_hotplug_freq6;	// Yank: added tuneable up_threshold_hotplug_freq1 for core6
 	unsigned int up_threshold_hotplug7;		// ZZ: added tuneable up_threshold_hotplug7 for core7
+	unsigned int up_threshold_hotplug_freq7;	// Yank: added tuneable up_threshold_hotplug_freq1 for core7
 #endif
 	unsigned int up_threshold_sleep;		// ZZ: added tuneable up_threshold_sleep for early suspend
 	unsigned int down_threshold;
 	unsigned int down_threshold_hotplug1;		// ZZ: added tuneable down_threshold_hotplug1 for core1
+	unsigned int down_threshold_hotplug_freq1;	// Yank: added tuneable down_threshold_hotplug_freq1 for core1
+#if (MAX_CORES == 4 || MAX_CORES == 8)
 	unsigned int down_threshold_hotplug2;		// ZZ: added tuneable down_threshold_hotplug2 for core2
+	unsigned int down_threshold_hotplug_freq2;	// Yank: added tuneable down_threshold_hotplug_freq1 for core2
 	unsigned int down_threshold_hotplug3;		// ZZ: added tuneable down_threshold_hotplug3 for core3
+	unsigned int down_threshold_hotplug_freq3;	// Yank: added tuneable down_threshold_hotplug_freq1 for core3
+#endif
 #if (MAX_CORES == 8)
 	unsigned int down_threshold_hotplug4;		// ZZ: added tuneable down_threshold_hotplug4 for core4
+	unsigned int down_threshold_hotplug_freq4;	// Yank: added tuneable down_threshold_hotplug_freq1 for core4
 	unsigned int down_threshold_hotplug5;		// ZZ: added tuneable down_threshold_hotplug5 for core5
+	unsigned int down_threshold_hotplug_freq5;	// Yank: added tuneable down_threshold_hotplug_freq1 for core5
 	unsigned int down_threshold_hotplug6;		// ZZ: added tuneable down_threshold_hotplug6 for core6
+	unsigned int down_threshold_hotplug_freq6;	// Yank: added tuneable down_threshold_hotplug_freq1 for core6
 	unsigned int down_threshold_hotplug7;		// ZZ: added tuneable down_threshold_hotplug7 for core7
+	unsigned int down_threshold_hotplug_freq7;	// Yank: added tuneable down_threshold_hotplug_freq1 for core7
 #endif
 	unsigned int down_threshold_sleep;		// ZZ: added tuneable down_threshold_sleep for early suspend
 	unsigned int ignore_nice;
@@ -482,68 +507,82 @@ static struct dbs_tuners {
 
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
-	.up_threshold_hotplug1 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.up_threshold_hotplug1 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,			// ZZ: set default value for new tuneable
+	.up_threshold_hotplug_freq1 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ,		// Yank: set default value for new tuneable
 #if (MAX_CORES == 4 || MAX_CORES == 8)
-	.up_threshold_hotplug2 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
-	.up_threshold_hotplug3 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.up_threshold_hotplug2 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,			// ZZ: set default value for new tuneable
+	.up_threshold_hotplug_freq2 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ,		// Yank: set default value for new tuneable
+	.up_threshold_hotplug3 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,			// ZZ: set default value for new tuneable
+	.up_threshold_hotplug_freq3 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ,		// Yank: set default value for new tuneable
 #endif
 #if (MAX_CORES == 8)
-	.up_threshold_hotplug4 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
-	.up_threshold_hotplug5 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
-	.up_threshold_hotplug6 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
-	.up_threshold_hotplug7 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.up_threshold_hotplug4 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,			// ZZ: set default value for new tuneable
+	.up_threshold_hotplug_freq4 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ,		// Yank: set default value for new tuneable
+	.up_threshold_hotplug5 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,			// ZZ: set default value for new tuneable
+	.up_threshold_hotplug_freq5 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ,		// Yank: set default value for new tuneable
+	.up_threshold_hotplug6 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,			// ZZ: set default value for new tuneable
+	.up_threshold_hotplug_freq6 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ,		// Yank: set default value for new tuneable
+	.up_threshold_hotplug7 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG,			// ZZ: set default value for new tuneable
+	.up_threshold_hotplug_freq7 = DEF_FREQUENCY_UP_THRESHOLD_HOTPLUG_FREQ,		// Yank: set default value for new tuneable
 #endif
-	.up_threshold_sleep = DEF_UP_THRESHOLD_SLEEP,				// ZZ: set default value for new tuneable
+	.up_threshold_sleep = DEF_UP_THRESHOLD_SLEEP,					// ZZ: set default value for new tuneable
 	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
-	.down_threshold_hotplug1 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,	// ZZ: set default value for new tuneable
+	.down_threshold_hotplug1 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.down_threshold_hotplug_freq1 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ,	// Yank: set default value for new tuneable
 #if (MAX_CORES == 4 || MAX_CORES == 8)
-	.down_threshold_hotplug2 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,	// ZZ: set default value for new tuneable
-	.down_threshold_hotplug3 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,	// ZZ: set default value for new tuneable
+	.down_threshold_hotplug2 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.down_threshold_hotplug_freq2 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ,	// Yank: set default value for new tuneable
+	.down_threshold_hotplug3 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.down_threshold_hotplug_freq3 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ,	// Yank: set default value for new tuneable
 #endif
 #if (MAX_CORES == 8)
-	.down_threshold_hotplug4 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,	// ZZ: set default value for new tuneable
-	.down_threshold_hotplug5 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,	// ZZ: set default value for new tuneable
-	.down_threshold_hotplug6 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,	// ZZ: set default value for new tuneable
-	.down_threshold_hotplug7 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,	// ZZ: set default value for new tuneable
+	.down_threshold_hotplug4 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.down_threshold_hotplug_freq4 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ,	// Yank: set default value for new tuneable
+	.down_threshold_hotplug5 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.down_threshold_hotplug_freq5 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ,	// Yank: set default value for new tuneable
+	.down_threshold_hotplug6 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.down_threshold_hotplug_freq6 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ,	// Yank: set default value for new tuneable
+	.down_threshold_hotplug7 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG,		// ZZ: set default value for new tuneable
+	.down_threshold_hotplug_freq7 = DEF_FREQUENCY_DOWN_THRESHOLD_HOTPLUG_FREQ,	// Yank: set default value for new tuneable
 #endif
-	.down_threshold_sleep = DEF_DOWN_THRESHOLD_SLEEP,			// ZZ: set default value for new tuneable
-	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,			// ZZ: sampling down reactivated but disabled by default
-	.sampling_down_momentum = DEF_SAMPLING_DOWN_MOMENTUM,			// ZZ: Sampling down momentum initial disabled
-	.sampling_down_max_mom = DEF_SAMPLING_DOWN_MAX_MOMENTUM,		// ZZ: Sampling down momentum default for max momentum
-	.sampling_down_mom_sens = DEF_SAMPLING_DOWN_MOMENTUM_SENSITIVITY,	// ZZ: Sampling down momentum default for sensitivity
-	.sampling_rate_sleep_multiplier = DEF_SAMPLING_RATE_SLEEP_MULTIPLIER,	// ZZ: set default value for new tuneable
-	.ignore_nice = DEF_IGNORE_NICE,						// ZZ: set default value for tuneable
-	.freq_step = DEF_FREQ_STEP,						// ZZ: set default value for new tuneable
-	.freq_step_sleep = DEF_FREQ_STEP_SLEEP,					// ZZ: set default value for new tuneable
+	.down_threshold_sleep = DEF_DOWN_THRESHOLD_SLEEP,				// ZZ: set default value for new tuneable
+	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,				// ZZ: sampling down reactivated but disabled by default
+	.sampling_down_momentum = DEF_SAMPLING_DOWN_MOMENTUM,				// ZZ: Sampling down momentum initial disabled
+	.sampling_down_max_mom = DEF_SAMPLING_DOWN_MAX_MOMENTUM,			// ZZ: Sampling down momentum default for max momentum
+	.sampling_down_mom_sens = DEF_SAMPLING_DOWN_MOMENTUM_SENSITIVITY,		// ZZ: Sampling down momentum default for sensitivity
+	.sampling_rate_sleep_multiplier = DEF_SAMPLING_RATE_SLEEP_MULTIPLIER,		// ZZ: set default value for new tuneable
+	.ignore_nice = DEF_IGNORE_NICE,							// ZZ: set default value for tuneable
+	.freq_step = DEF_FREQ_STEP,							// ZZ: set default value for new tuneable
+	.freq_step_sleep = DEF_FREQ_STEP_SLEEP,						// ZZ: set default value for new tuneable
 	.smooth_up = DEF_SMOOTH_UP,
-	.smooth_up_sleep = DEF_SMOOTH_UP_SLEEP,					// ZZ: set default value for new tuneable
-	.hotplug_sleep = DEF_HOTPLUG_SLEEP,					// ZZ: set default value for new tuneable
-	.freq_limit = DEF_FREQ_LIMIT,						// ZZ: set default value for new tuneable
-	.freq_limit_sleep = DEF_FREQ_LIMIT_SLEEP,				// ZZ: set default value for new tuneable
-	.fast_scaling = DEF_FAST_SCALING,					// ZZ: set default value for new tuneable
-	.fast_scaling_sleep = DEF_FAST_SCALING_SLEEP,				// ZZ: set default value for new tuneable
-	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,				// ZZ: Early demand default for grad up threshold
-	.early_demand = 0,							// ZZ: Early demand default off
-	.disable_hotplug = false,						// ZZ: Hotplug switch default off (=hotplugging on)
-	.hotplug_block_cycles = DEF_HOTPLUG_BLOCK_CYCLES,			// ZZ: Hotplug block circles default
-	.hotplug_idle_threshold = DEF_HOTPLUG_IDLE_THRESHOLD,			// ZZ: Hotplug idle threshold default
+	.smooth_up_sleep = DEF_SMOOTH_UP_SLEEP,						// ZZ: set default value for new tuneable
+	.hotplug_sleep = DEF_HOTPLUG_SLEEP,						// ZZ: set default value for new tuneable
+	.freq_limit = DEF_FREQ_LIMIT,							// ZZ: set default value for new tuneable
+	.freq_limit_sleep = DEF_FREQ_LIMIT_SLEEP,					// ZZ: set default value for new tuneable
+	.fast_scaling = DEF_FAST_SCALING,						// ZZ: set default value for new tuneable
+	.fast_scaling_sleep = DEF_FAST_SCALING_SLEEP,					// ZZ: set default value for new tuneable
+	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,					// ZZ: Early demand default for grad up threshold
+	.early_demand = 0,								// ZZ: Early demand default off
+	.disable_hotplug = false,							// ZZ: Hotplug switch default off (=hotplugging on)
+	.hotplug_block_cycles = DEF_HOTPLUG_BLOCK_CYCLES,				// ZZ: Hotplug block circles default
+	.hotplug_idle_threshold = DEF_HOTPLUG_IDLE_THRESHOLD,				// ZZ: Hotplug idle threshold default
 #ifdef ENABLE_LEGACY_MODE
-	.legacy_mode = false,							// ZZ: Legacy Mode
+	.legacy_mode = false,								// ZZ: Legacy Mode
 #endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
-	.lcdfreq_enable = false,						// ZZ: LCDFreq Scaling default off
-	.lcdfreq_kick_in_down_delay = LCD_FREQ_KICK_IN_DOWN_DELAY,		// ZZ: LCDFreq Scaling default for down delay
-	.lcdfreq_kick_in_down_left = LCD_FREQ_KICK_IN_DOWN_DELAY,		// ZZ: LCDFreq Scaling default for down left
-	.lcdfreq_kick_in_up_delay = LCD_FREQ_KICK_IN_UP_DELAY,			// ZZ: LCDFreq Scaling default for up delay
-	.lcdfreq_kick_in_up_left = LCD_FREQ_KICK_IN_UP_DELAY,			// ZZ: LCDFreq Scaling default for up left
-	.lcdfreq_kick_in_freq = LCD_FREQ_KICK_IN_FREQ,				// ZZ: LCDFreq Scaling default for kick in freq
-	.lcdfreq_kick_in_cores = LCD_FREQ_KICK_IN_CORES,			// ZZ: LCDFreq Scaling default for kick in cores
+	.lcdfreq_enable = false,							// ZZ: LCDFreq Scaling default off
+	.lcdfreq_kick_in_down_delay = LCD_FREQ_KICK_IN_DOWN_DELAY,			// ZZ: LCDFreq Scaling default for down delay
+	.lcdfreq_kick_in_down_left = LCD_FREQ_KICK_IN_DOWN_DELAY,			// ZZ: LCDFreq Scaling default for down left
+	.lcdfreq_kick_in_up_delay = LCD_FREQ_KICK_IN_UP_DELAY,				// ZZ: LCDFreq Scaling default for up delay
+	.lcdfreq_kick_in_up_left = LCD_FREQ_KICK_IN_UP_DELAY,				// ZZ: LCDFreq Scaling default for up left
+	.lcdfreq_kick_in_freq = LCD_FREQ_KICK_IN_FREQ,					// ZZ: LCDFreq Scaling default for kick in freq
+	.lcdfreq_kick_in_cores = LCD_FREQ_KICK_IN_CORES,				// ZZ: LCDFreq Scaling default for kick in cores
 #endif
 	};
 
-unsigned int freq_table_size = 0;						// Yank : upper index limit of freq. table
-unsigned int min_scaling_freq = 0;						// Yank : lowest frequency index in global frequency table
-int freq_table_order = 1;							// Yank : 1 for descending order, -1 for ascending order
+unsigned int freq_table_size = 0;							// Yank : upper index limit of freq. table
+unsigned int min_scaling_freq = 0;							// Yank : lowest frequency index in global frequency table
+int freq_table_order = 1;								// Yank : 1 for descending order, -1 for ascending order
 
 /**
  * Smooth scaling conservative governor (by Michael Weingaertner)
@@ -587,6 +626,7 @@ int freq_table_order = 1;							// Yank : 1 for descending order, -1 for ascendi
  *                        modified scaling logic accordingly (credits to Yank555)
  */
 
+#ifdef ENABLE_LEGACY_MODE
 /*
 * Table modified for use with Samsung I9300 by ZaneZam November 2012
 * zzmoove v0.3 - table modified to reach overclocking frequencies up to 1600mhz
@@ -614,7 +654,6 @@ static int lag_freqs[17][7]={
     { 200000, 300000, 200000, 400000, 200000, 400000, 200000}
 };
 
-#ifdef ENABLE_LEGACY_MODE
 // ZZ: Legacy Mode
 static int lag_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
     int i=0;
@@ -623,7 +662,7 @@ if (load < dbs_tuners_ins.smooth_up)
     {
 	for(i = 0; i < 17 ; i++)
 	{
-	    if(curfreq == lag_freqs[i][LAG_FREQ]) {
+	    if(unlikely(curfreq == lag_freqs[i][LAG_FREQ])) {
 	    if(dbs_tuners_ins.fast_scaling != 0)
 		return lag_freqs[i][updown+4]; // updown 5|6 - fast scaling colums
 	    else
@@ -635,7 +674,7 @@ if (load < dbs_tuners_ins.smooth_up)
     {
 	for(i = 0; i < 17; i++)
 	{
-	    if(curfreq == lag_freqs[i][LAG_FREQ]){
+	    if(unlikely(curfreq == lag_freqs[i][LAG_FREQ])){
 	    if(dbs_tuners_ins.fast_scaling != 0)
 		return lag_freqs[i][updown+4]; // updown 5|6 - fast scaling colums
 	    else
@@ -669,7 +708,7 @@ static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned 
 
 	for(i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
 
-		if(curfreq == table[i].frequency) {
+		if(unlikely(curfreq == table[i].frequency)) {
 
 			// Yank : We found where we currently are (i)
 			if(updown == SCALE_FREQ_UP)
@@ -785,28 +824,42 @@ show_one(sampling_down_momentum_sensitivity, sampling_down_mom_sens);		// ZZ: ad
 show_one(up_threshold, up_threshold);
 show_one(up_threshold_sleep, up_threshold_sleep);				// ZZ: added up_threshold_sleep tuneable for early suspend
 show_one(up_threshold_hotplug1, up_threshold_hotplug1);				// ZZ: added up_threshold_hotplug1 tuneable for cpu1
+show_one(up_threshold_hotplug_freq1, up_threshold_hotplug_freq1);			// Yank: added up_threshold_hotplug_freq1 tuneable for cpu1
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 show_one(up_threshold_hotplug2, up_threshold_hotplug2);				// ZZ: added up_threshold_hotplug2 tuneable for cpu2
+show_one(up_threshold_hotplug_freq2, up_threshold_hotplug_freq2);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu2
 show_one(up_threshold_hotplug3, up_threshold_hotplug3);				// ZZ: added up_threshold_hotplug3 tuneable for cpu3
+show_one(up_threshold_hotplug_freq3, up_threshold_hotplug_freq3);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu3
 #endif
 #if (MAX_CORES == 8)
 show_one(up_threshold_hotplug4, up_threshold_hotplug4);				// ZZ: added up_threshold_hotplug4 tuneable for cpu4
+show_one(up_threshold_hotplug_freq4, up_threshold_hotplug_freq4);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu4
 show_one(up_threshold_hotplug5, up_threshold_hotplug5);				// ZZ: added up_threshold_hotplug5 tuneable for cpu5
+show_one(up_threshold_hotplug_freq5, up_threshold_hotplug_freq5);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu5
 show_one(up_threshold_hotplug6, up_threshold_hotplug6);				// ZZ: added up_threshold_hotplug6 tuneable for cpu6
+show_one(up_threshold_hotplug_freq6, up_threshold_hotplug_freq6);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu6
 show_one(up_threshold_hotplug7, up_threshold_hotplug7);				// ZZ: added up_threshold_hotplug7 tuneable for cpu7
+show_one(up_threshold_hotplug_freq7, up_threshold_hotplug_freq7);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu7
 #endif
 show_one(down_threshold, down_threshold);
 show_one(down_threshold_sleep, down_threshold_sleep);				// ZZ: added down_threshold_sleep tuneable for early suspend
 show_one(down_threshold_hotplug1, down_threshold_hotplug1);			// ZZ: added down_threshold_hotplug1 tuneable for cpu1
+show_one(down_threshold_hotplug_freq1, down_threshold_hotplug_freq1);		// Yank: added down_threshold_hotplug_freq1 tuneable for cpu1
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 show_one(down_threshold_hotplug2, down_threshold_hotplug2);			// ZZ: added down_threshold_hotplug2 tuneable for cpu2
+show_one(down_threshold_hotplug_freq2, down_threshold_hotplug_freq2);		// Yank: added down_threshold_hotplug_freq2 tuneable for cpu2
 show_one(down_threshold_hotplug3, down_threshold_hotplug3);			// ZZ: added down_threshold_hotplug3 tuneable for cpu3
+show_one(down_threshold_hotplug_freq3, down_threshold_hotplug_freq3);		// Yank: added down_threshold_hotplug_freq3 tuneable for cpu3
 #endif
 #if (MAX_CORES == 8)
 show_one(down_threshold_hotplug4, down_threshold_hotplug4);			// ZZ: added down_threshold_hotplug4 tuneable for cpu4
+show_one(down_threshold_hotplug_freq4, down_threshold_hotplug_freq4);		// Yank: added down_threshold_hotplug_freq4 tuneable for cpu4
 show_one(down_threshold_hotplug5, down_threshold_hotplug5);			// ZZ: added down_threshold_hotplug5 tuneable for cpu5
+show_one(down_threshold_hotplug_freq5, down_threshold_hotplug_freq5);		// Yank: added down_threshold_hotplug_freq5 tuneable for cpu5
 show_one(down_threshold_hotplug6, down_threshold_hotplug6);			// ZZ: added down_threshold_hotplug6 tuneable for cpu6
+show_one(down_threshold_hotplug_freq6, down_threshold_hotplug_freq6);		// Yank: added down_threshold_hotplug_freq6 tuneable for cpu6
 show_one(down_threshold_hotplug7, down_threshold_hotplug7);			// ZZ: added down_threshold_hotplug7 tuneable for cpu7
+show_one(down_threshold_hotplug_freq7, down_threshold_hotplug_freq7);		// Yank: added down_threshold_hotplug_freq7 tuneable for cpu7
 #endif
 show_one(ignore_nice_load, ignore_nice);
 show_one(freq_step, freq_step);
@@ -973,119 +1026,60 @@ static ssize_t store_up_threshold_sleep(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
-static ssize_t store_up_threshold_hotplug1(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
+// Yank : also use definitions for other hotplug tunables
 
-	if (ret != 1 || input > 100 || (input <= dbs_tuners_ins.down_threshold && input != 0))
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold_hotplug1 = input;
-	hotplug_thresholds[0][0] = input;
-	return count;
+#define store_up_threshold_hotplug(name,core)							\
+static ssize_t store_up_threshold_hotplug##name							\
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				\
+{												\
+	unsigned int input;									\
+	int ret;										\
+	ret = sscanf(buf, "%u", &input);							\
+												\
+	if (ret != 1 || input > 100 || input < dbs_tuners_ins.down_threshold_hotplug##name)	\
+		return -EINVAL;									\
+												\
+	dbs_tuners_ins.up_threshold_hotplug##name = input;					\
+	hotplug_thresholds[0][core] = input;							\
+	return count;										\
 }
+
+#define store_down_threshold_hotplug(name,core)							\
+static ssize_t store_down_threshold_hotplug##name						\
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				\
+{												\
+	unsigned int input;									\
+	int ret;										\
+	ret = sscanf(buf, "%u", &input);							\
+												\
+	if (ret != 1 || input < 11 || input > dbs_tuners_ins.up_threshold_hotplug##name)	\
+		return -EINVAL;									\
+												\
+	dbs_tuners_ins.down_threshold_hotplug##name = input;					\
+	hotplug_thresholds[1][core] = input;							\
+	return count;										\
+}
+
+// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
+store_up_threshold_hotplug(1,0);
+store_down_threshold_hotplug(1,0);
 #if (MAX_CORES == 4 || MAX_CORES == 8)
-// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
-static ssize_t store_up_threshold_hotplug2(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 || (input <= dbs_tuners_ins.down_threshold && input != 0))
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold_hotplug2 = input;
-	hotplug_thresholds[0][1] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
-static ssize_t store_up_threshold_hotplug3(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 || (input <= dbs_tuners_ins.down_threshold && input != 0))
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold_hotplug3 = input;
-	hotplug_thresholds[0][2] = input;
-	return count;
-}
+store_up_threshold_hotplug(2,1);
+store_down_threshold_hotplug(2,1);
+store_up_threshold_hotplug(3,2);
+store_down_threshold_hotplug(3,2);
 #endif
 #if (MAX_CORES == 8)
-// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
-static ssize_t store_up_threshold_hotplug4(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 || (input <= dbs_tuners_ins.down_threshold && input != 0))
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold_hotplug4 = input;
-	hotplug_thresholds[0][3] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
-static ssize_t store_up_threshold_hotplug5(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 || (input <= dbs_tuners_ins.down_threshold && input != 0))
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold_hotplug5 = input;
-	hotplug_thresholds[0][4] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
-static ssize_t store_up_threshold_hotplug6(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 || (input <= dbs_tuners_ins.down_threshold && input != 0))
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold_hotplug6 = input;
-	hotplug_thresholds[0][5] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: 0 to disable core, range from down_threshold up to 100, if not set default is 68
-static ssize_t store_up_threshold_hotplug7(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 || (input <= dbs_tuners_ins.down_threshold && input != 0))
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold_hotplug7 = input;
-	hotplug_thresholds[0][6] = input;
-	return count;
-}
+store_up_threshold_hotplug(4,3);
+store_down_threshold_hotplug(4,3);
+store_up_threshold_hotplug(5,4);
+store_down_threshold_hotplug(5,4);
+store_up_threshold_hotplug(6,5);
+store_down_threshold_hotplug(6,5);
+store_up_threshold_hotplug(7,5);
+store_down_threshold_hotplug(7,6);
 #endif
+
 static ssize_t store_down_threshold(struct kobject *a, struct attribute *b,
 				    const char *buf, size_t count)
 {
@@ -1118,134 +1112,6 @@ static ssize_t store_down_threshold_sleep(struct kobject *a, struct attribute *b
 	dbs_tuners_ins.down_threshold_sleep = input;
 	return count;
 }
-
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
-static ssize_t store_down_threshold_hotplug1(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold_hotplug1 = input;
-	hotplug_thresholds[1][0] = input;
-	return count;
-}
-#if (MAX_CORES == 4 || MAX_CORES == 8)
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
-static ssize_t store_down_threshold_hotplug2(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold_hotplug2 = input;
-	hotplug_thresholds[1][1] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
-static ssize_t store_down_threshold_hotplug3(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold_hotplug3 = input;
-	hotplug_thresholds[1][2] = input;
-	return count;
-}
-#endif
-#if (MAX_CORES == 8)
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
-static ssize_t store_down_threshold_hotplug4(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold_hotplug4 = input;
-	hotplug_thresholds[1][3] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
-static ssize_t store_down_threshold_hotplug5(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold_hotplug5 = input;
-	hotplug_thresholds[1][4] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
-static ssize_t store_down_threshold_hotplug6(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold_hotplug6 = input;
-	hotplug_thresholds[1][5] = input;
-	return count;
-}
-
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
-static ssize_t store_down_threshold_hotplug7(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold_hotplug7 = input;
-	hotplug_thresholds[1][6] = input;
-	return count;
-}
-#endif
 
 static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 				      const char *buf, size_t count)
@@ -1708,6 +1574,111 @@ static ssize_t store_hotplug_idle_threshold(struct kobject *a, struct attribute 
 	return count;
 }
 
+// Yank: add hotplug up/down threshold sysfs store interface
+
+#define store_up_threshold_hotplug_freq(name,core)						\
+static ssize_t store_up_threshold_hotplug_freq##name						\
+(struct kobject *a, struct attribute *b, const char *buf, size_t count) 			\
+{												\
+	unsigned int input;									\
+	struct cpufreq_frequency_table *table;							\
+	int ret;										\
+	int i=0;										\
+												\
+	ret = sscanf(buf, "%u", &input);							\
+	if (ret != 1)										\
+		return -EINVAL;									\
+												\
+	if (input == 0) {									\
+		dbs_tuners_ins.up_threshold_hotplug_freq##name = input;				\
+		hotplug_thresholds_freq[0][core] = input;					\
+		dbs_tuners_ins.down_threshold_hotplug_freq##name = input;			\
+		hotplug_thresholds_freq[1][core] = input;					\
+		return count;									\
+	}											\
+												\
+	if (input <= dbs_tuners_ins.down_threshold_hotplug_freq##name)				\
+		return -EINVAL;									\
+												\
+	table = cpufreq_frequency_get_table(0);							\
+												\
+	if (!table) {										\
+		return -EINVAL;									\
+	} else if (input > table[max_scaling_freq_hard].frequency) {				\
+		return -EINVAL;									\
+	} else {										\
+		for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++)			\
+			if (table[i].frequency == input) {					\
+				dbs_tuners_ins.up_threshold_hotplug_freq##name = input;		\
+				hotplug_thresholds_freq[0][core] = input;			\
+				return count;							\
+			}									\
+	}											\
+												\
+	return -EINVAL;										\
+}
+
+#define store_down_threshold_hotplug_freq(name,core)						\
+static ssize_t store_down_threshold_hotplug_freq##name						\
+(struct kobject *a, struct attribute *b, const char *buf, size_t count) 			\
+{												\
+	unsigned int input;									\
+	struct cpufreq_frequency_table *table;							\
+	int ret;										\
+	int i=0;										\
+												\
+	ret = sscanf(buf, "%u", &input);							\
+	if (ret != 1)										\
+		return -EINVAL;									\
+												\
+	if (input == 0) {									\
+		dbs_tuners_ins.up_threshold_hotplug_freq##name = input;				\
+		hotplug_thresholds_freq[0][core] = input;					\
+		dbs_tuners_ins.down_threshold_hotplug_freq##name = input;			\
+		hotplug_thresholds_freq[1][core] = input;					\
+		return count;									\
+	}											\
+												\
+	if (input >= dbs_tuners_ins.up_threshold_hotplug_freq##name)				\
+		return -EINVAL;									\
+												\
+	table = cpufreq_frequency_get_table(0);							\
+												\
+	if (!table) {										\
+		return -EINVAL;									\
+	} else if (input > table[max_scaling_freq_hard].frequency) {				\
+		return -EINVAL;									\
+	} else {										\
+		for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++)			\
+			if (table[i].frequency == input) {					\
+				dbs_tuners_ins.down_threshold_hotplug_freq##name = input;	\
+				hotplug_thresholds_freq[1][core] = input;			\
+				return count;							\
+			}									\
+	}											\
+												\
+	return -EINVAL;										\
+}
+
+store_up_threshold_hotplug_freq(1,0);
+store_down_threshold_hotplug_freq(1,0);
+#if (MAX_CORES == 4 || MAX_CORES == 8)
+store_up_threshold_hotplug_freq(2,1);
+store_down_threshold_hotplug_freq(2,1);
+store_up_threshold_hotplug_freq(3,2);
+store_down_threshold_hotplug_freq(3,2);
+#endif
+#if (MAX_CORES == 8)
+store_up_threshold_hotplug_freq(4,3);
+store_down_threshold_hotplug_freq(4,3);
+store_up_threshold_hotplug_freq(5,4);
+store_down_threshold_hotplug_freq(5,4);
+store_up_threshold_hotplug_freq(6,5);
+store_down_threshold_hotplug_freq(6,5);
+store_up_threshold_hotplug_freq(7,6);
+store_down_threshold_hotplug_freq(7,6);
+#endif
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_rate_sleep_multiplier);		// ZZ: added tuneable
 define_one_global_rw(sampling_down_factor);			// ZZ: Sampling down factor (reactived)
@@ -1716,28 +1687,42 @@ define_one_global_rw(sampling_down_momentum_sensitivity);	// ZZ: Sampling down m
 define_one_global_rw(up_threshold);
 define_one_global_rw(up_threshold_sleep); 			// ZZ: added tuneable
 define_one_global_rw(up_threshold_hotplug1);			// ZZ: added tuneable
+define_one_global_rw(up_threshold_hotplug_freq1);		// Yank: added tuneable
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 define_one_global_rw(up_threshold_hotplug2);			// ZZ: added tuneable
+define_one_global_rw(up_threshold_hotplug_freq2);		// Yank: added tuneable
 define_one_global_rw(up_threshold_hotplug3);			// ZZ: added tuneable
+define_one_global_rw(up_threshold_hotplug_freq3);		// Yank: added tuneable
 #endif
 #if (MAX_CORES == 8)
 define_one_global_rw(up_threshold_hotplug4);			// ZZ: added tuneable
+define_one_global_rw(up_threshold_hotplug_freq4);		// Yank: added tuneable
 define_one_global_rw(up_threshold_hotplug5);			// ZZ: added tuneable
+define_one_global_rw(up_threshold_hotplug_freq5);		// Yank: added tuneable
 define_one_global_rw(up_threshold_hotplug6);			// ZZ: added tuneable
+define_one_global_rw(up_threshold_hotplug_freq6);		// Yank: added tuneable
 define_one_global_rw(up_threshold_hotplug7);			// ZZ: added tuneable
+define_one_global_rw(up_threshold_hotplug_freq7);		// Yank: added tuneable
 #endif
 define_one_global_rw(down_threshold);
 define_one_global_rw(down_threshold_sleep);			// ZZ: added tuneable
 define_one_global_rw(down_threshold_hotplug1);			// ZZ: added tuneable
+define_one_global_rw(down_threshold_hotplug_freq1);		// Yank: added tuneable
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 define_one_global_rw(down_threshold_hotplug2);			// ZZ: added tuneable
+define_one_global_rw(down_threshold_hotplug_freq2);		// Yank: added tuneable
 define_one_global_rw(down_threshold_hotplug3);			// ZZ: added tuneable
+define_one_global_rw(down_threshold_hotplug_freq3);		// Yank: added tuneable
 #endif
 #if (MAX_CORES == 8)
 define_one_global_rw(down_threshold_hotplug4);			// ZZ: added tuneable
+define_one_global_rw(down_threshold_hotplug_freq4);		// Yank: added tuneable
 define_one_global_rw(down_threshold_hotplug5);			// ZZ: added tuneable
+define_one_global_rw(down_threshold_hotplug_freq5);		// Yank: added tuneable
 define_one_global_rw(down_threshold_hotplug6);			// ZZ: added tuneable
+define_one_global_rw(down_threshold_hotplug_freq6);		// Yank: added tuneable
 define_one_global_rw(down_threshold_hotplug7);			// ZZ: added tuneable
+define_one_global_rw(down_threshold_hotplug_freq7);		// Yank: added tuneable
 #endif
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(freq_step);
@@ -1772,28 +1757,42 @@ static struct attribute *dbs_attributes[] = {
 	&sampling_down_max_momentum.attr,			// ZZ: Sampling down momentum tuneable
 	&sampling_down_momentum_sensitivity.attr,		// ZZ: Sampling down momentum tuneable
 	&up_threshold_hotplug1.attr,				// ZZ: added tuneable
+	&up_threshold_hotplug_freq1.attr,			// Yank: added tuneable
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 	&up_threshold_hotplug2.attr,				// ZZ: added tuneable
+	&up_threshold_hotplug_freq2.attr,			// Yank: added tuneable
 	&up_threshold_hotplug3.attr,				// ZZ: added tuneable
+	&up_threshold_hotplug_freq3.attr,			// Yank: added tuneable
 #endif
 #if (MAX_CORES == 8)
 	&up_threshold_hotplug4.attr,				// ZZ: added tuneable
+	&up_threshold_hotplug_freq4.attr,			// Yank: added tuneable
 	&up_threshold_hotplug5.attr,				// ZZ: added tuneable
+	&up_threshold_hotplug_freq5.attr,			// Yank: added tuneable
 	&up_threshold_hotplug6.attr,				// ZZ: added tuneable
+	&up_threshold_hotplug_freq6.attr,			// Yank: added tuneable
 	&up_threshold_hotplug7.attr,				// ZZ: added tuneable
+	&up_threshold_hotplug_freq7.attr,			// Yank: added tuneable
 #endif
 	&down_threshold.attr,
 	&down_threshold_sleep.attr,				// ZZ: added tuneable
 	&down_threshold_hotplug1.attr,				// ZZ: added tuneable
+	&down_threshold_hotplug_freq1.attr,			// Yank: added tuneable
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 	&down_threshold_hotplug2.attr,				// ZZ: added tuneable
+	&down_threshold_hotplug_freq2.attr,			// Yank: added tuneable
 	&down_threshold_hotplug3.attr,				// ZZ: added tuneable
+	&down_threshold_hotplug_freq3.attr,			// Yank: added tuneable
 #endif
 #if (MAX_CORES == 8)
 	&down_threshold_hotplug4.attr,				// ZZ: added tuneable
+	&down_threshold_hotplug_freq4.attr,			// Yank: added tuneable
 	&down_threshold_hotplug5.attr,				// ZZ: added tuneable
+	&down_threshold_hotplug_freq5.attr,			// Yank: added tuneable
 	&down_threshold_hotplug6.attr,				// ZZ: added tuneable
+	&down_threshold_hotplug_freq6.attr,			// Yank: added tuneable
 	&down_threshold_hotplug7.attr,				// ZZ: added tuneable
+	&down_threshold_hotplug_freq7.attr,			// Yank: added tuneable
 #endif
 	&ignore_nice_load.attr,
 	&freq_step.attr,
@@ -1906,6 +1905,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			max_load = load;
 			cur_load = load; // ZZ: current load for hotplugging functions
 		}
+
+		cur_freq = policy->cur;  // Yank: store current frequency
+
 	/*
 	 * ZZ: Early demand by stratosk
 	 * Calculate the gradient of load_freq. If it is too steep we assume
@@ -2373,8 +2375,11 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 	} else {
 #endif
 	    for (i = num_possible_cpus() - 1; i >= 1; i--) {
-		    if (cpu_online(i) && skip_hotplug_flag == 0 && cur_load < hotplug_thresholds[1][i-1])
-		    cpu_down(i);
+		    if( cpu_online(i)										&&
+			skip_hotplug_flag == 0									&&
+			cur_load < hotplug_thresholds[1][i-1]							&&
+			(hotplug_thresholds_freq[1][i-1] == 0 || cur_freq < hotplug_thresholds_freq[1][i-1])       )
+			    cpu_down(i);
 	    }
 #ifdef ENABLE_LEGACY_MODE
     }
@@ -2427,8 +2432,12 @@ static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
 	} else {
 #endif
 	    for (i = 1; i < num_possible_cpus(); i++) {
-		    if (!cpu_online(i) && skip_hotplug_flag == 0 && hotplug_thresholds[0][i-1] != 0 && cur_load > hotplug_thresholds[0][i-1])
-		    cpu_up(i);
+		    if( !cpu_online(i)										&&
+			skip_hotplug_flag == 0									&&
+			hotplug_thresholds[0][i-1] != 0								&&
+			cur_load > hotplug_thresholds[0][i-1]							&&
+			(hotplug_thresholds_freq[0][i-1] == 0 || cur_freq > hotplug_thresholds_freq[0][i-1])       )
+			    cpu_up(i);
 	    }
 #ifdef ENABLE_LEGACY_MODE
 	}
