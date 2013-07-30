@@ -218,6 +218,9 @@
  *---------------------------------------------------------------------------------------------------------------------------------------------------------
  */
 
+// Yank555.lu : Allow to include or exclude lagacy mode (SGS3 only !)
+//#define ENABLE_LEGACY_MODE
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -464,7 +467,9 @@ static struct dbs_tuners {
 	unsigned int disable_hotplug;			// ZZ: Hotplug switch
 	unsigned int hotplug_block_cycles;		// ZZ: HP Block Circles
 	unsigned int hotplug_idle_threshold;		// ZZ: HP Idle Threshold
+#ifdef ENABLE_LEGACY_MODE
 	unsigned int legacy_mode;			// ZZ: Legacy Mode
+#endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 	int lcdfreq_enable;				// ZZ: LCDFreq Scaling switch
 	unsigned int lcdfreq_kick_in_down_delay;	// ZZ: LCDFreq Scaling kick in down delay counter
@@ -522,7 +527,9 @@ static struct dbs_tuners {
 	.disable_hotplug = false,						// ZZ: Hotplug switch default off (=hotplugging on)
 	.hotplug_block_cycles = DEF_HOTPLUG_BLOCK_CYCLES,			// ZZ: Hotplug block circles default
 	.hotplug_idle_threshold = DEF_HOTPLUG_IDLE_THRESHOLD,			// ZZ: Hotplug idle threshold default
+#ifdef ENABLE_LEGACY_MODE
 	.legacy_mode = false,							// ZZ: Legacy Mode
+#endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 	.lcdfreq_enable = false,						// ZZ: LCDFreq Scaling default off
 	.lcdfreq_kick_in_down_delay = LCD_FREQ_KICK_IN_DOWN_DELAY,		// ZZ: LCDFreq Scaling default for down delay
@@ -558,8 +565,10 @@ int freq_table_order = 1;							// Yank : 1 for descending order, -1 for ascendi
 #define SCALE_FREQ_UP 1
 #define SCALE_FREQ_DOWN 2
 
+#ifdef ENABLE_LEGACY_MODE
 // ZZ: Legacy Mode
 #define LAG_FREQ 0
+#endif
 
 /*
  * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
@@ -605,6 +614,7 @@ static int lag_freqs[17][7]={
     { 200000, 300000, 200000, 400000, 200000, 400000, 200000}
 };
 
+#ifdef ENABLE_LEGACY_MODE
 // ZZ: Legacy Mode
 static int lag_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
     int i=0;
@@ -635,6 +645,7 @@ if (load < dbs_tuners_ins.smooth_up)
     }
 return (curfreq); // not found
 }
+#endif
 
 // Yank : Return a valid value between min and max
 static int validate_min_max(int val, int min, int max) {
@@ -812,7 +823,9 @@ show_one(early_demand, early_demand);						// ZZ: added Early demand tuneable ma
 show_one(disable_hotplug, disable_hotplug);					// ZZ: added Hotplug switch
 show_one(hotplug_block_cycles, hotplug_block_cycles);				// ZZ: added Hotplug circles
 show_one(hotplug_idle_threshold, hotplug_idle_threshold);			// ZZ: added Hotplug idle threshold
+#ifdef ENABLE_LEGACY_MODE
 show_one(legacy_mode, legacy_mode);						// ZZ: Legacy Mode
+#endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 show_one(lcdfreq_enable, lcdfreq_enable);					// ZZ: added LCDFreq Scaling tuneable master switch
 show_one(lcdfreq_kick_in_down_delay, lcdfreq_kick_in_down_delay);		// ZZ: added LCDFreq Scaling tuneable kick in down delay
@@ -1660,6 +1673,7 @@ static ssize_t store_hotplug_block_cycles(struct kobject *a, struct attribute *b
 	return count;
 }
 
+#ifdef ENABLE_LEGACY_MODE
 static ssize_t store_legacy_mode(struct kobject *a, struct attribute *b,
 					    const char *buf, size_t count)
 {
@@ -1676,6 +1690,7 @@ static ssize_t store_legacy_mode(struct kobject *a, struct attribute *b,
 		dbs_tuners_ins.legacy_mode = false;
 	return count;
 }
+#endif
 
 // ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
 static ssize_t store_hotplug_idle_threshold(struct kobject *a, struct attribute *b,
@@ -1739,7 +1754,9 @@ define_one_global_rw(early_demand);				// ZZ: Early demand tuneable
 define_one_global_rw(disable_hotplug);				// ZZ: Hotplug switch
 define_one_global_rw(hotplug_block_cycles);			// ZZ: Hotplug Circles
 define_one_global_rw(hotplug_idle_threshold);			// ZZ: Hotplug idle threshold
+#ifdef ENABLE_LEGACY_MODE
 define_one_global_rw(legacy_mode);				// ZZ: Legacy Mode
+#endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 define_one_global_rw(lcdfreq_enable);				// ZZ: LCDFreq Scaling tuneable
 define_one_global_rw(lcdfreq_kick_in_down_delay);		// ZZ: LCDFreq Scaling tuneable
@@ -1795,7 +1812,9 @@ static struct attribute *dbs_attributes[] = {
 	&disable_hotplug.attr,					// ZZ: Hotplug switch
 	&hotplug_block_cycles.attr,				// ZZ: Hotplug block circles
 	&hotplug_idle_threshold.attr,				// ZZ: Hotplug idle threshold
+#ifdef ENABLE_LEGACY_MODE
 	&legacy_mode.attr,					// ZZ: Legacy Mode
+#endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 	&lcdfreq_enable.attr,					// ZZ: LCD Freq Scaling tuneable
 	&lcdfreq_kick_in_down_delay.attr,			// ZZ: LCD Freq Scaling tuneable
@@ -1994,10 +2013,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	    /* ZZ: Frequency Limit: but let it scale up as normal if the freqencies are lower freq_limit */
 	    } else if (dbs_tuners_ins.freq_limit != 0 && policy->cur < dbs_tuners_ins.freq_limit) {
 
-			// ZZ: Leagy Mode
+#ifdef ENABLE_LEGACY_MODE
+			// ZZ: Legacy Mode
 			if (unlikely(dbs_tuners_ins.legacy_mode == true))
 				this_dbs_info->requested_freq = lag_get_next_freq(policy->cur, SCALE_FREQ_UP, max_load);
 			else
+#endif
 				this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, SCALE_FREQ_UP, max_load);
 
 		    /* ZZ: check again if we are above limit because of fast scaling */
@@ -2020,10 +2041,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		return;
 	    }
 	
+#ifdef ENABLE_LEGACY_MODE
 	    // ZZ: Leagcy mode
 	    if (unlikely(dbs_tuners_ins.legacy_mode == true))
 		this_dbs_info->requested_freq = lag_get_next_freq(policy->cur, SCALE_FREQ_UP, max_load);
 	     else
+#endif
 		this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, SCALE_FREQ_UP, max_load);
 	    
 	    /* ZZ: check if requested freq is higher than max freq if so bring it down to max freq (DerTeufel1980) */
@@ -2198,10 +2221,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	/* ZZ: Frequency Limit: else we scale down as usual */
 	} else if (dbs_tuners_ins.freq_limit != 0 && policy->cur <= dbs_tuners_ins.freq_limit) {
 	
+#ifdef ENABLE_LEGACY_MODE
 		    // ZZ: Legacy Mode
 		    if (unlikely(dbs_tuners_ins.legacy_mode == true))
 			this_dbs_info->requested_freq = lag_get_next_freq(policy->cur, SCALE_FREQ_DOWN, max_load);
 		    else
+#endif
 			this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, SCALE_FREQ_DOWN, max_load);
 
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
@@ -2255,10 +2280,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 					CPUFREQ_RELATION_L); // ZZ: changed to relation low 
 		return;
 	}
+
+#ifdef ENABLE_LEGACY_MODE
 	    // ZZ: Legacy Mode
 	    if (unlikely(dbs_tuners_ins.legacy_mode == true))
 		this_dbs_info->requested_freq = lag_get_next_freq(policy->cur, SCALE_FREQ_DOWN, max_load);
 	    else
+#endif
 		this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, SCALE_FREQ_DOWN, max_load);
 
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
@@ -2317,6 +2345,7 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 {
 	int i=0;
 
+#ifdef ENABLE_LEGACY_MODE
 	if (unlikely(dbs_tuners_ins.legacy_mode == true && num_possible_cpus() == 4)) {
 	    if (num_online_cpus() > 3) {
 		if (cur_load < hotplug_thresholds[1][2] && skip_hotplug_flag == 0 && cpu_online(3))
@@ -2342,12 +2371,14 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 	}
 
 	} else {
+#endif
 	    for (i = num_possible_cpus() - 1; i >= 1; i--) {
 		    if (cpu_online(i) && skip_hotplug_flag == 0 && cur_load < hotplug_thresholds[1][i-1])
 		    cpu_down(i);
-	}
+	    }
+#ifdef ENABLE_LEGACY_MODE
     }
-
+#endif
 }
 
 // ZZ: function for hotplug up work
@@ -2363,6 +2394,7 @@ static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
 	return;
 	}
 
+#ifdef ENABLE_LEGACY_MODE
 	if (unlikely(dbs_tuners_ins.legacy_mode == true && num_possible_cpus() == 4)) {
 
 		if (num_online_cpus() < 2) {
@@ -2393,12 +2425,14 @@ static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
 		}
 
 	} else {
-
+#endif
 	    for (i = 1; i < num_possible_cpus(); i++) {
 		    if (!cpu_online(i) && skip_hotplug_flag == 0 && hotplug_thresholds[0][i-1] != 0 && cur_load > hotplug_thresholds[0][i-1])
 		    cpu_up(i);
 	    }
+#ifdef ENABLE_LEGACY_MODE
 	}
+#endif
 }
 
 static void do_dbs_timer(struct work_struct *work)
