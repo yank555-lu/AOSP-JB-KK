@@ -1592,8 +1592,6 @@ static ssize_t store_up_threshold_hotplug_freq##name						\
 	if (input == 0) {									\
 		dbs_tuners_ins.up_threshold_hotplug_freq##name = input;				\
 		hotplug_thresholds_freq[0][core] = input;					\
-		dbs_tuners_ins.down_threshold_hotplug_freq##name = input;			\
-		hotplug_thresholds_freq[1][core] = input;					\
 		return count;									\
 	}											\
 												\
@@ -1632,8 +1630,6 @@ static ssize_t store_down_threshold_hotplug_freq##name						\
 		return -EINVAL;									\
 												\
 	if (input == 0) {									\
-		dbs_tuners_ins.up_threshold_hotplug_freq##name = input;				\
-		hotplug_thresholds_freq[0][core] = input;					\
 		dbs_tuners_ins.down_threshold_hotplug_freq##name = input;			\
 		hotplug_thresholds_freq[1][core] = input;					\
 		return count;									\
