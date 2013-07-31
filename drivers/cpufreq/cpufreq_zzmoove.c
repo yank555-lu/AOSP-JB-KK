@@ -11,7 +11,7 @@
  * published by the Free Software Foundation.
  *
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
- * - ZZMoove Governor v0.6a by ZaneZam 2012/13 Changelog:
+ * - ZZMoove Governor v0.6c-beta1 by ZaneZam 2012/13 Changelog:
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
  *
  * Version 0.1 - first release
@@ -824,22 +824,22 @@ show_one(sampling_down_momentum_sensitivity, sampling_down_mom_sens);		// ZZ: ad
 show_one(up_threshold, up_threshold);
 show_one(up_threshold_sleep, up_threshold_sleep);				// ZZ: added up_threshold_sleep tuneable for early suspend
 show_one(up_threshold_hotplug1, up_threshold_hotplug1);				// ZZ: added up_threshold_hotplug1 tuneable for cpu1
-show_one(up_threshold_hotplug_freq1, up_threshold_hotplug_freq1);			// Yank: added up_threshold_hotplug_freq1 tuneable for cpu1
+show_one(up_threshold_hotplug_freq1, up_threshold_hotplug_freq1);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu1
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 show_one(up_threshold_hotplug2, up_threshold_hotplug2);				// ZZ: added up_threshold_hotplug2 tuneable for cpu2
-show_one(up_threshold_hotplug_freq2, up_threshold_hotplug_freq2);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu2
+show_one(up_threshold_hotplug_freq2, up_threshold_hotplug_freq2);		// Yank: added up_threshold_hotplug_freq2 tuneable for cpu2
 show_one(up_threshold_hotplug3, up_threshold_hotplug3);				// ZZ: added up_threshold_hotplug3 tuneable for cpu3
-show_one(up_threshold_hotplug_freq3, up_threshold_hotplug_freq3);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu3
+show_one(up_threshold_hotplug_freq3, up_threshold_hotplug_freq3);		// Yank: added up_threshold_hotplug_freq3 tuneable for cpu3
 #endif
 #if (MAX_CORES == 8)
 show_one(up_threshold_hotplug4, up_threshold_hotplug4);				// ZZ: added up_threshold_hotplug4 tuneable for cpu4
-show_one(up_threshold_hotplug_freq4, up_threshold_hotplug_freq4);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu4
+show_one(up_threshold_hotplug_freq4, up_threshold_hotplug_freq4);		// Yank: added up_threshold_hotplug_freq4 tuneable for cpu4
 show_one(up_threshold_hotplug5, up_threshold_hotplug5);				// ZZ: added up_threshold_hotplug5 tuneable for cpu5
-show_one(up_threshold_hotplug_freq5, up_threshold_hotplug_freq5);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu5
+show_one(up_threshold_hotplug_freq5, up_threshold_hotplug_freq5);		// Yank: added up_threshold_hotplug_freq5 tuneable for cpu5
 show_one(up_threshold_hotplug6, up_threshold_hotplug6);				// ZZ: added up_threshold_hotplug6 tuneable for cpu6
-show_one(up_threshold_hotplug_freq6, up_threshold_hotplug_freq6);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu6
+show_one(up_threshold_hotplug_freq6, up_threshold_hotplug_freq6);		// Yank: added up_threshold_hotplug_freq6 tuneable for cpu6
 show_one(up_threshold_hotplug7, up_threshold_hotplug7);				// ZZ: added up_threshold_hotplug7 tuneable for cpu7
-show_one(up_threshold_hotplug_freq7, up_threshold_hotplug_freq7);		// Yank: added up_threshold_hotplug_freq1 tuneable for cpu7
+show_one(up_threshold_hotplug_freq7, up_threshold_hotplug_freq7);		// Yank: added up_threshold_hotplug_freq7 tuneable for cpu7
 #endif
 show_one(down_threshold, down_threshold);
 show_one(down_threshold_sleep, down_threshold_sleep);				// ZZ: added down_threshold_sleep tuneable for early suspend
