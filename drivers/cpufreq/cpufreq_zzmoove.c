@@ -11,8 +11,10 @@
  * published by the Free Software Foundation.
  *
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
- * - ZZMoove Governor v0.6c-beta1 by ZaneZam 2012/13 Changelog:
- * --------------------------------------------------------------------------------------------------------------------------------------------------------
+ * - ZZMoove Governor by ZaneZam 2012/13 Changelog:
+ * -------------------------------------------------------------------------------------------------------------------------------------------------------- */
+#define ZZMOOVE_VERSION	"v0.7beta1"
+/*
  *
  * Version 0.1 - first release
  *
@@ -1745,6 +1747,16 @@ define_one_global_rw(lcdfreq_kick_in_up_delay);			// ZZ: LCDFreq Scaling tuneabl
 define_one_global_rw(lcdfreq_kick_in_freq);			// ZZ: LCDFreq Scaling tuneable
 define_one_global_rw(lcdfreq_kick_in_cores);			// ZZ: LCDFreq Scaling tuneable
 #endif
+
+// Yank : add version info tunable
+static ssize_t show_version(struct device *dev, struct device_attribute *attr, char *buf) {
+
+	return sprintf(buf, "zzmoove %s\n", ZZMOOVE_VERSION);
+
+}
+
+static DEVICE_ATTR(version, S_IRUGO , show_version, NULL);
+
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
 	&sampling_rate.attr,
@@ -1817,6 +1829,7 @@ static struct attribute *dbs_attributes[] = {
 	&lcdfreq_kick_in_freq.attr,				// ZZ: LCD Freq Scaling tuneable
 	&lcdfreq_kick_in_cores.attr,				// ZZ: LCD Freq Scaling tuneable
 #endif
+	&dev_attr_version.attr,					// Yank : zzmoove version
 	NULL
 };
 
