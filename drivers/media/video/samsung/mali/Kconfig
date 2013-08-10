@@ -61,3 +61,19 @@ config VIDEO_MALI400MP_DVFS
 	default y
 	help
 	  This enables Mali driver DVFS.
+
+config GPU_CLOCK_CONTROL
+  	bool "Enable GPU clock control and voltage interface"
+  	depends on VIDEO_MALI400MP
+  	default y
+  	help
+    	  This enables a sysfs interface to control gpu clock and voltage
+    	  including auto-applied full freq. range voltage table (Yank555.lu).
+
+config GPU_VOLTAGE_WRITE_CONTROL
+  	bool "Enable GPU voltage control interface in read/write (instead of read-only)"
+  	depends on GPU_CLOCK_CONTROL
+  	default y
+  	help
+    	  This enables the sysfs interface to control gpu voltage in read/write (Yank555.lu).
+
