@@ -205,6 +205,45 @@ void vibtonz_pwm(int nForce)
 	}
 }
 EXPORT_SYMBOL(vibtonz_pwm);
+
+static ssize_t pwm_value_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int count;
+
+	pwm_val = ((pwm_duty - pwm_duty_min) * 100) / pwm_duty_min;
+
+	count = sprintf(buf, "%lu\n", pwm_val);
+	pr_debug("[VIB] pwm_value: %lu\n", pwm_val);
+
+	return count;
+}
+
+ssize_t pwm_value_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	if (kstrtoul(buf, 0, &pwm_val))
+		pr_err("[VIB] %s: error on storing pwm_value\n", __func__);
+
+	pr_info("[VIB] %s: pwm_value=%lu\n", __func__, pwm_val);
+
+	pwm_duty = (pwm_val * pwm_duty_min) / 100 + pwm_duty_min;
+
+	/* make sure new pwm duty is in range */
+	if(pwm_duty > pwm_duty_max) {
+		pwm_duty = pwm_duty_max;
+	}
+	else if (pwm_duty < pwm_duty_min) {
+		pwm_duty = pwm_duty_min;
+	}
+
+	pr_info("[VIB] %s: pwm_duty=%d\n", __func__, pwm_duty);
+
+	return size;
+}
+static DEVICE_ATTR(pwm_value, S_IRUGO | S_IWUSR,
+		pwm_value_show, pwm_value_store);
 #endif
 
 static int __devinit vibrator_probe(struct platform_device *pdev)
@@ -263,6 +302,12 @@ static int __devinit vibrator_probe(struct platform_device *pdev)
 		pr_err("[VIB] Failed to register timed_output : %d\n", error);
 		error = -EFAULT;
 		goto err_timed_output_register;
+	}
+
+	/* User controllable pwm level */
+	error = device_create_file(ddata->dev.dev, &dev_attr_pwm_value);
+	if (error < 0) {
+		pr_err("[VIB] create sysfs fail: pwm_value\n");
 	}
 
 #ifdef CONFIG_VIBETONZ
