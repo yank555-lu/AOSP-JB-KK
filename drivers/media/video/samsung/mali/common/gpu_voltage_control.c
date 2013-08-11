@@ -20,8 +20,6 @@
  *
  */
 
-// #define VOLTAGE_INTERFACE_READWRITE
-
 #include <linux/platform_device.h>
 #include <linux/miscdevice.h>
 
@@ -56,7 +54,7 @@ static ssize_t gpu_voltage_show(struct device *dev, struct device_attribute *att
 	return len;
 }
 
-#ifdef VOLTAGE_INTERFACE_READWRITE
+#ifdef CONFIG_GPU_VOLTAGE_WRITE_CONTROL
 static ssize_t gpu_voltage_store(struct device *dev, struct device_attribute *attr, const char *buf,
 									size_t count) {
 	unsigned int ret = -EINVAL;
@@ -95,7 +93,7 @@ static ssize_t asv_level_show(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(asv_level, S_IRUGO, asv_level_show, NULL);
 
-#ifdef VOLTAGE_INTERFACE_READWRITE
+#ifdef CONFIG_GPU_VOLTAGE_WRITE_CONTROL
 // Yank555.lu : add voltage table reset according to ASV level and default table
 static ssize_t mali_dvfs_table_update_store(struct device *dev, struct device_attribute *attr, const char *buf,
 									size_t count) {
@@ -122,7 +120,7 @@ static DEVICE_ATTR(mali_dvfs_table_update, S_IWUGO, NULL, mali_dvfs_table_update
 #endif
 
 // GPU voltage steps
-#ifdef VOLTAGE_INTERFACE_READWRITE
+#ifdef CONFIG_GPU_VOLTAGE_WRITE_CONTROL
 
 #define expose_gpu_voltage(step)									\
 static ssize_t show_gpu_voltage_##step									\
@@ -181,7 +179,7 @@ expose_gpu_voltage(4);
 static struct attribute *gpu_voltage_control_attributes[] = {
 	&dev_attr_gpu_control.attr,
 	&dev_attr_asv_level.attr,
-#ifdef VOLTAGE_INTERFACE_READWRITE
+#ifdef CONFIG_GPU_VOLTAGE_WRITE_CONTROL
 	&dev_attr_mali_dvfs_table_update.attr,
 #endif
 	// Yank555.lu : new GPU voltage steps interface
