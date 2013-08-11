@@ -11,10 +11,8 @@
  * published by the Free Software Foundation.
  *
  * --------------------------------------------------------------------------------------------------------------------------------------------------------
- * - ZZMoove Governor by ZaneZam 2012/13 Changelog:
- * -------------------------------------------------------------------------------------------------------------------------------------------------------- */
-#define ZZMOOVE_VERSION	"v0.7beta1"
-/*
+ *   ZZMoove Governor by ZaneZam 2012/13 Changelog:
+ * --------------------------------------------------------------------------------------------------------------------------------------------------------
  *
  * Version 0.1 - first release
  *
@@ -214,13 +212,55 @@
  * Version 0.6a - scaling logic felxibility (in cooperation with Yank555)
  *
  *	- added check if CPU freq. table is in ascending or descending order and scale accordingly
+ *	  (compatibility for systems with 'inverted' frequency table like it is on OMAP4 platform)
+ *	  thanks and credits to Yank555!
+ *	
+ * Version 0.7 - slow down (in cooperation with Yank555)
+ *	
+ *	- reindroduced the "old way" of hotplugging and scaling in form of the "Legacy Mode" (macros for enabling/disabling this done by Yank555, thx!)
+ *	  NOTE: this mode can only handle 4 cores and a scaling max frequency up to 1800mhz.
+ *	- added hotplug idle threshold for a balanced load at CPU idle to reduce possible higher idle temperatures when running on just one core.
+ *        (inspired by JustArchi's observations, thx!)
+ *	- added hotplug block cycles to reduce possible hotplugging overhead (credits to ktoonsez)
+ *	- added possibility to disable hotplugging only at suspend (inspired by a request of STAticKY, thx for the idea)
+ *	- introduced hotplug frequency thresholds (credits to Yank555)
+ *	- hotplug tuneables handling optimized (credits to Yank555)
+ *	- added version information tuneable (credits to Yank555)
+ *
+ *	  for this functions following new tuneables were indroduced:
+ *
+ *	  legacy_mode			-> for switching to the "old" method of scaling/hotplugging. possible values 0 to disable,
+ *					   any values above 0 to enable (default is 0)
+ *	  				   NOTE: the legacy mode has to be enabled by uncommenting the macro ENABLE_LEGACY_MODE below!
+ *	  hotplug_idle_threshold	-> amount of load under which hotplugging should be disabled at idle times (respectively at scaling minimum).
+ *					   possible values 0 disable, from 1 to 100 (default is 0)
+ *	  hotplug_block_cycles		-> slow down hotplugging by waiting a given amount of cycles before plugging.
+ *					   possible values 0 disbale, any values above 0 (default is 0)
+ *	  disable_hotplug_sleep		-> same as disable_hotplug but will only take effect at suspend.
+ *					   possible values 0 disable, any values above 0 to enable (default is 0)
+ *	  up_threshold_hotplug_freq1	-> hotplug up frequency threshold for core1.
+ *					   possible values 0 disable and range from over down_threshold_hotplug_freq1 to max scaling freqency (default is 0)
+ *	  up_threshold_hotplug_freq2	-> hotplug up frequency threshold for core2.
+ *					   possible values 0 disable and range from over down_threshold_hotplug_freq2 to max scaling freqency (default is 0)
+ *	  up_threshold_hotplug_freq3	-> hotplug up frequency threshold for core3.
+ *					   possible values 0 disable and range from over down_threshold_hotplug_freq3 to max scaling freqency (default is 0)
+ *	  down_threshold_hotplug_freq1	-> hotplug down frequency threshold for core1.
+ *					   possible values 0 disable and range from min saling to under up_threshold_hotplug_freq1 freqency (default is 0)
+ *	  down_threshold_hotplug_freq2	-> hotplug down frequency threshold for core2.
+ *					   possible values 0 disable and range from min saling to under up_threshold_hotplug_freq2 freqency (default is 0)
+ *	  down_threshold_hotplug_freq3	-> hotplug down frequency threshold for core3.
+ *					   possible values 0 disable and range from min saling to under up_threshold_hotplug_freq3 freqency (default is 0)
+ *	  version			-> show the version of zzmoove governor
  *
  *---------------------------------------------------------------------------------------------------------------------------------------------------------
  *-                                                                                                                                                       -
  *---------------------------------------------------------------------------------------------------------------------------------------------------------
  */
 
-// Yank555.lu : Allow to include or exclude lagacy mode (SGS3 only !)
+// Yank: Added a sysfs interface to display current zzmoove version
+#define ZZMOOVE_VERSION "0.7"
+
+// Yank: Allow to include or exclude legacy mode (support for SGS3/Note II only and max scaling freq 1800mhz!)
 //#define ENABLE_LEGACY_MODE
 
 #include <linux/kernel.h>
@@ -283,7 +323,7 @@ static unsigned int min_sampling_rate;			// ZZ: minimal possible sampling rate
 static unsigned int orig_sampling_down_factor;		// ZZ: for saving previously set sampling down factor
 static unsigned int orig_sampling_down_max_mom;		// ZZ: for saving previously set smapling down max momentum
 
-// ZZ: search limit for frequencies in scaling array, variables for scaling modes and state flags for deadlock fix/suspend detection
+// ZZ: search limit for frequencies in scaling table, variables for scaling modes and state flags for deadlock fix/suspend detection
 static unsigned int max_scaling_freq_soft = 0;		// ZZ: init value for "soft" scaling = 0 full range
 static unsigned int max_scaling_freq_hard = 0;		// ZZ: init value for "hard" scaling = 0 full range
 static unsigned int suspend_flag = 0;			// ZZ: init value for suspend status. 1 = in early suspend
@@ -291,7 +331,7 @@ static unsigned int skip_hotplug_flag = 1;		// ZZ: initial start without hotplug
 static int scaling_mode_up;				// ZZ: fast scaling up mode holding up value during runtime
 static int scaling_mode_down;				// ZZ: fast scaling down mode holding down value during runtime
 
-// ZZ: added hotplug block cycles
+// ZZ: added hotplug idle threshold and block cycles
 #define DEF_HOTPLUG_BLOCK_CYCLES		(0)
 #define DEF_HOTPLUG_IDLE_THRESHOLD		(0)
 static unsigned int hotplug_idle_flag = 0;
@@ -332,6 +372,7 @@ static unsigned int smooth_up_awake;
 static unsigned int freq_limit_awake;			// ZZ: for saving freqency limit awake value
 static unsigned int fast_scaling_awake;			// ZZ: for saving fast scaling awake value
 static unsigned int freq_step_awake;			// ZZ: for saving frequency step awake value
+static unsigned int disable_hotplug_awake;		// ZZ: for daving hotplug switch
 static unsigned int hotplug1_awake;			// ZZ: for saving hotplug1 threshold awake value
 #if (MAX_CORES == 4 || MAX_CORES == 8)
 static unsigned int hotplug2_awake;			// ZZ: for saving hotplug2 threshold awake value
@@ -350,6 +391,7 @@ static unsigned int smooth_up_asleep;			// ZZ: for setting smooth scaling value 
 static unsigned int freq_limit_asleep;			// ZZ: for setting frequency limit value on early suspend
 static unsigned int fast_scaling_asleep;		// ZZ: for setting fast scaling value on early suspend
 static unsigned int freq_step_asleep;			// ZZ: for setting freq step value on early suspend
+static unsigned int disable_hotplug_asleep;		// ZZ: for setting hotplug on/off on early suspend
 
 // ZZ: midnight and zzmoove momentum defaults
 #define LATENCY_MULTIPLIER			(1000)
@@ -492,8 +534,9 @@ static struct dbs_tuners {
 	unsigned int grad_up_threshold;			// ZZ: Early demand grad up threshold tuneable
 	unsigned int early_demand;			// ZZ: Early demand master switch
 	unsigned int disable_hotplug;			// ZZ: Hotplug switch
-	unsigned int hotplug_block_cycles;		// ZZ: HP Block Circles
-	unsigned int hotplug_idle_threshold;		// ZZ: HP Idle Threshold
+	unsigned int disable_hotplug_sleep;		// ZZ: Hotplug switch for sleep
+	unsigned int hotplug_block_cycles;		// ZZ: Hotplug block cycles
+	unsigned int hotplug_idle_threshold;		// ZZ: Hotplug idle threshold
 #ifdef ENABLE_LEGACY_MODE
 	unsigned int legacy_mode;			// ZZ: Legacy Mode
 #endif
@@ -566,10 +609,11 @@ static struct dbs_tuners {
 	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,					// ZZ: Early demand default for grad up threshold
 	.early_demand = 0,								// ZZ: Early demand default off
 	.disable_hotplug = false,							// ZZ: Hotplug switch default off (=hotplugging on)
-	.hotplug_block_cycles = DEF_HOTPLUG_BLOCK_CYCLES,				// ZZ: Hotplug block circles default
+	.disable_hotplug_sleep = false,							// ZZ: Hotplug switch for sleep default off (=hotplugging on)
+	.hotplug_block_cycles = DEF_HOTPLUG_BLOCK_CYCLES,				// ZZ: Hotplug block cycles default
 	.hotplug_idle_threshold = DEF_HOTPLUG_IDLE_THRESHOLD,				// ZZ: Hotplug idle threshold default
 #ifdef ENABLE_LEGACY_MODE
-	.legacy_mode = false,								// ZZ: Legacy Mode
+	.legacy_mode = false,								// ZZ: Legacy Mode default off
 #endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 	.lcdfreq_enable = false,							// ZZ: LCDFreq Scaling default off
@@ -588,14 +632,16 @@ int freq_table_order = 1;								// Yank : 1 for descending order, -1 for ascend
 
 /**
  * Smooth scaling conservative governor (by Michael Weingaertner)
- * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
+ * -----------------------------------------------------------------------
+ * -------------- since zzmoove v0.7 only in Legacy Mode -----------------
  * This modification makes the governor use two lookup tables holding
  * current, next and previous frequency to directly get a correct
  * target frequency instead of calculating target frequencies with
  * up_threshold and step_up %. The two scaling lookup tables used
  * contain different scaling steps/frequencies to achieve faster upscaling
  * on higher CPU load.
- * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
+ * -----------------------------------------------------------------------
+ * -------------- since zzmoove v0.7 only in Legacy Mode -----------------
  * CPU load triggering faster upscaling can be adjusted via SYSFS,
  * VALUE between 1 and 100 (% CPU load):
  * echo VALUE > /sys/devices/system/cpu/cpufreq/zzmoove/smooth_up
@@ -612,7 +658,6 @@ int freq_table_order = 1;								// Yank : 1 for descending order, -1 for ascend
 #endif
 
 /*
- * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
  * Table modified for use with Samsung I9300 by ZaneZam November 2012
  * zzmoove v0.3 	- table modified to reach overclocking frequencies up to 1600mhz
  * zzmoove v0.4 	- added fast scaling columns to frequency table
@@ -622,19 +667,19 @@ int freq_table_order = 1;								// Yank : 1 for descending order, -1 for ascend
  *                	  added search limit for more efficent frequency searching and better hard/softlimit handling
  * zzmoove v0.5.1b 	- combination of power and normal scaling table to only one array (idea by Yank555)
  *                 	- scaling logic reworked and optimized by Yank555
- * -------------------------------------------------------------------------> obsolete since zzmoove v0.6 but stays for the record!
- *
  * zzmoove v0.6 	- completely removed lookup tables and use the system frequency table instead 
  *                        modified scaling logic accordingly (credits to Yank555)
+ * zzmoove v0.6a	- added check if CPU freq. table is in ascending or descending order and scale accordingly (credits to Yank555)
+ * zzmoove v0.7		- reindroduced the "scaling lookup table way" in form of the "Legacy Mode"
+ *
  */
 
 #ifdef ENABLE_LEGACY_MODE
 /*
-* Table modified for use with Samsung I9300 by ZaneZam November 2012
-* zzmoove v0.3 - table modified to reach overclocking frequencies up to 1600mhz
-* zzmoove v0.4 - added fast scaling columns to frequency table
+ * ZZ: Legacy Mode:
+ *     Frequency table from version 0.5 extended with fast scaling frequencies
+ *     Scaling logic base taken from version 0.4 enhanced with some optimizations
 */
-
 
 static int lag_freqs[17][7]={
     {1800000,1800000,1700000,1800000,1700000,1800000,1500000},
@@ -656,7 +701,7 @@ static int lag_freqs[17][7]={
     { 200000, 300000, 200000, 400000, 200000, 400000, 200000}
 };
 
-// ZZ: Legacy Mode
+// ZZ: Legacy Mode scaling
 static int lag_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
     int i=0;
     
@@ -668,7 +713,7 @@ if (load < dbs_tuners_ins.smooth_up)
 	    if(dbs_tuners_ins.fast_scaling != 0)
 		return lag_freqs[i][updown+4]; // updown 5|6 - fast scaling colums
 	    else
-		return lag_freqs[i][updown]; // updown 1|2 - normal colums
+		return lag_freqs[i][updown];   // updown 1|2 - normal colums
 	    }
 	}
     }
@@ -876,10 +921,11 @@ show_one(fast_scaling_sleep, fast_scaling_sleep);				// ZZ: added fast_scaling_s
 show_one(grad_up_threshold, grad_up_threshold);					// ZZ: added Early demand tuneable grad up threshold
 show_one(early_demand, early_demand);						// ZZ: added Early demand tuneable master switch
 show_one(disable_hotplug, disable_hotplug);					// ZZ: added Hotplug switch
-show_one(hotplug_block_cycles, hotplug_block_cycles);				// ZZ: added Hotplug circles
+show_one(disable_hotplug_sleep, disable_hotplug_sleep);				// ZZ: added Hotplug switch for sleep
+show_one(hotplug_block_cycles, hotplug_block_cycles);				// ZZ: added Hotplug block cycles
 show_one(hotplug_idle_threshold, hotplug_idle_threshold);			// ZZ: added Hotplug idle threshold
 #ifdef ENABLE_LEGACY_MODE
-show_one(legacy_mode, legacy_mode);						// ZZ: Legacy Mode
+show_one(legacy_mode, legacy_mode);						// ZZ: Legacy Mode switch
 #endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 show_one(lcdfreq_enable, lcdfreq_enable);					// ZZ: added LCDFreq Scaling tuneable master switch
@@ -1498,7 +1544,7 @@ static ssize_t store_early_demand(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-// ZZ: added tuneable hotplug switch for debugging and testing purposes -> possible values: 0 to disable, any value above 0 to enable, if not set default is 0
+// ZZ: added tuneable hotplug switch -> possible values: 0 to disable, any value above 0 to enable, if not set default is 0
 static ssize_t store_disable_hotplug(struct kobject *a, struct attribute *b,
 					    const char *buf, size_t count)
 {
@@ -1522,6 +1568,25 @@ static ssize_t store_disable_hotplug(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+// ZZ: added tuneable hotplug switch for early supend -> possible values: 0 to disable, any value above 0 to enable, if not set default is 0
+static ssize_t store_disable_hotplug_sleep(struct kobject *a, struct attribute *b,
+					    const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+	return -EINVAL;
+
+	if (input > 0)
+		dbs_tuners_ins.disable_hotplug_sleep = true;
+	else
+		dbs_tuners_ins.disable_hotplug_sleep = false;
+	return count;
+}
+
+// ZZ: added tuneable hotplug block cycles -> possible values: 0 to disable, any value above 0 to enable, if not set default is 0
 static ssize_t store_hotplug_block_cycles(struct kobject *a, struct attribute *b,
 					    const char *buf, size_t count)
 {
@@ -1529,7 +1594,6 @@ static ssize_t store_hotplug_block_cycles(struct kobject *a, struct attribute *b
 	int ret;
 	ret = sscanf(buf, "%u", &input);
 
-	/* cannot be lower than 11 otherwise freq will not fall */
 	if (input < 0)
 	return -EINVAL;
 
@@ -1542,6 +1606,7 @@ static ssize_t store_hotplug_block_cycles(struct kobject *a, struct attribute *b
 }
 
 #ifdef ENABLE_LEGACY_MODE
+// ZZ: added tuneable for Legacy Mode -> possible values: 0 to disable, any value above 0 to enable, if not set default is 0
 static ssize_t store_legacy_mode(struct kobject *a, struct attribute *b,
 					    const char *buf, size_t count)
 {
@@ -1560,7 +1625,7 @@ static ssize_t store_legacy_mode(struct kobject *a, struct attribute *b,
 }
 #endif
 
-// ZZ: added tuneable -> possible values: range from 11 to up_threshold but not up_threshold, if not set default is 55
+// ZZ: added tuneable hotplug idle threshold -> possible values: range from 0 disabled to 100, if not set default is 0
 static ssize_t store_hotplug_idle_threshold(struct kobject *a, struct attribute *b,
 				    const char *buf, size_t count)
 {
@@ -1568,8 +1633,7 @@ static ssize_t store_hotplug_idle_threshold(struct kobject *a, struct attribute 
 	int ret;
 	ret = sscanf(buf, "%u", &input);
 
-	/* cannot be higher than min hoptlug value */
-	if ((ret != 1 || input < 11 || input > 100) && input != 0)
+	if ((ret != 1 || input < 0 || input > 100) && input != 0)
 		return -EINVAL;
 
 	dbs_tuners_ins.hotplug_idle_threshold = input;
@@ -1735,10 +1799,11 @@ define_one_global_rw(fast_scaling_sleep);			// ZZ: added tuneable
 define_one_global_rw(grad_up_threshold);			// ZZ: Early demand tuneable
 define_one_global_rw(early_demand);				// ZZ: Early demand tuneable
 define_one_global_rw(disable_hotplug);				// ZZ: Hotplug switch
-define_one_global_rw(hotplug_block_cycles);			// ZZ: Hotplug Circles
+define_one_global_rw(disable_hotplug_sleep);			// ZZ: Hotplug switch for sleep
+define_one_global_rw(hotplug_block_cycles);			// ZZ: Hotplug block cycles
 define_one_global_rw(hotplug_idle_threshold);			// ZZ: Hotplug idle threshold
 #ifdef ENABLE_LEGACY_MODE
-define_one_global_rw(legacy_mode);				// ZZ: Legacy Mode
+define_one_global_rw(legacy_mode);				// ZZ: Legacy Mode switch
 #endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 define_one_global_rw(lcdfreq_enable);				// ZZ: LCDFreq Scaling tuneable
@@ -1748,14 +1813,14 @@ define_one_global_rw(lcdfreq_kick_in_freq);			// ZZ: LCDFreq Scaling tuneable
 define_one_global_rw(lcdfreq_kick_in_cores);			// ZZ: LCDFreq Scaling tuneable
 #endif
 
-// Yank : add version info tunable
+// Yank: add version info tunable
 static ssize_t show_version(struct device *dev, struct device_attribute *attr, char *buf) {
 
-	return sprintf(buf, "zzmoove %s\n", ZZMOOVE_VERSION);
+    return sprintf(buf, "%s\n", ZZMOOVE_VERSION);
 
-}
+    }
 
-static DEVICE_ATTR(version, S_IRUGO , show_version, NULL);
+    static DEVICE_ATTR(version, S_IRUGO , show_version, NULL);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -1817,10 +1882,11 @@ static struct attribute *dbs_attributes[] = {
 	&grad_up_threshold.attr,				// ZZ: Early demand tuneable
 	&early_demand.attr,					// ZZ: Early demand tuneable
 	&disable_hotplug.attr,					// ZZ: Hotplug switch
-	&hotplug_block_cycles.attr,				// ZZ: Hotplug block circles
+	&disable_hotplug_sleep.attr,				// ZZ: Hotplug switch sleep
+	&hotplug_block_cycles.attr,				// ZZ: Hotplug block cycles
 	&hotplug_idle_threshold.attr,				// ZZ: Hotplug idle threshold
 #ifdef ENABLE_LEGACY_MODE
-	&legacy_mode.attr,					// ZZ: Legacy Mode
+	&legacy_mode.attr,					// ZZ: Legacy Mode switch
 #endif
 #ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
 	&lcdfreq_enable.attr,					// ZZ: LCD Freq Scaling tuneable
@@ -1829,7 +1895,7 @@ static struct attribute *dbs_attributes[] = {
 	&lcdfreq_kick_in_freq.attr,				// ZZ: LCD Freq Scaling tuneable
 	&lcdfreq_kick_in_cores.attr,				// ZZ: LCD Freq Scaling tuneable
 #endif
-	&dev_attr_version.attr,					// Yank : zzmoove version
+	&dev_attr_version.attr,					// Yank: zzmoove version
 	NULL
 };
 
@@ -1915,7 +1981,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			cur_load = load; // ZZ: current load for hotplugging functions
 		}
 
-		cur_freq = policy->cur;  // Yank: store current frequency
+		cur_freq = policy->cur;  // Yank: store current frequency for hotplugging frequency thresholds
 
 	/*
 	 * ZZ: Early demand by stratosk
@@ -1967,12 +2033,20 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 *
 	 * zzmoove v0.6		- reduced hotplug loop to a minimum and use seperate functions out of dbs_check_cpu for hotplug work (credits to ktoonsez)
 	 *
+	 * zzmoove v0.7		- added legacy mode for enabling the "old way of hotplugging" from versions 0.4/0.5
+	 *                      - added hotplug idle threshold for automatic disabling of hotplugging when CPU idles
+	 *                        (balanced cpu load might bring cooler cpu at that state - inspired by JustArchis observations, thx!)
+	 *                      - added hotplug block cycles to reduce hotplug overhead (credits to ktoonesz)
+	 *                      - added hotplug frequency thresholds (credits to Yank555)
 	 */
+	
+	// ZZ: if hotplug idle threshold is reached and cpu frequency is at its minimum disable hotplug
 	if (policy->cur == policy->min && max_load < dbs_tuners_ins.hotplug_idle_threshold && dbs_tuners_ins.hotplug_idle_threshold != 0 && suspend_flag == 0)
-	hotplug_idle_flag = 1;
+	    hotplug_idle_flag = 1;
 	else
-	hotplug_idle_flag = 0;
+	    hotplug_idle_flag = 0;
 
+	// ZZ: added block cycles to be able slow down hotplugging
 	if ((!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != num_possible_cpus() && policy->cur != policy->min) || hotplug_idle_flag == 1) {
 	    if (hotplug_up_block_cycles > dbs_tuners_ins.hotplug_block_cycles || dbs_tuners_ins.hotplug_block_cycles == 0) {
 		    schedule_work_on(0, &hotplug_online_work);
@@ -2053,7 +2127,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	    }
 	
 #ifdef ENABLE_LEGACY_MODE
-	    // ZZ: Leagcy mode
+	    // ZZ: Leagcy Mode
 	    if (unlikely(dbs_tuners_ins.legacy_mode == true))
 		this_dbs_info->requested_freq = lag_get_next_freq(policy->cur, SCALE_FREQ_UP, max_load);
 	     else
@@ -2138,8 +2212,14 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 *
 	 * zzmoove v0.6		- reduced hotplug loop to a minimum and use seperate functions out of dbs_check_cpu for hotplug work (credits to ktoonsez)
 	 *
+	 * zzmoove v0.7		- added legacy mode for enabling the "old way of hotplugging" from versions 0.4/0.5
+	 *                      - added hotplug idle threshold for automatic disabling of hotplugging when CPU idles
+	 *                        (balanced cpu load might bring cooler cpu at that state)
+	 *                      - added hotplug block cycles to reduce hotplug overhead (credits to ktoonesz)
+	 *                      - added hotplug frequency thresholds (credits to Yank555)
 	 */
 
+	// ZZ: added block cycles to be able slow down hotplugging
 	if (!dbs_tuners_ins.disable_hotplug && skip_hotplug_flag == 0 && num_online_cpus() != 1 && hotplug_idle_flag == 0) {
 	    if (hotplug_down_block_cycles > dbs_tuners_ins.hotplug_block_cycles || dbs_tuners_ins.hotplug_block_cycles == 0) {
 		schedule_work_on(0, &hotplug_offline_work);
@@ -2357,6 +2437,7 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 	int i=0;
 
 #ifdef ENABLE_LEGACY_MODE
+// ZZ: Legacy hotplugging
 	if (unlikely(dbs_tuners_ins.legacy_mode == true && num_possible_cpus() == 4)) {
 	    if (num_online_cpus() > 3) {
 		if (cur_load < hotplug_thresholds[1][2] && skip_hotplug_flag == 0 && cpu_online(3))
@@ -2379,10 +2460,11 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 	    } else if (num_online_cpus() > 1) {
 		if (cur_load < hotplug_thresholds[1][0] && skip_hotplug_flag == 0 && cpu_online(1))
 		    cpu_down(1);
-	}
+	    }
 
 	} else {
 #endif
+// Yank: added frequency thresholds
 	    for (i = num_possible_cpus() - 1; i >= 1; i--) {
 		    if( cpu_online(i)										&&
 			skip_hotplug_flag == 0									&&
@@ -2399,9 +2481,10 @@ static void __cpuinit hotplug_offline_work_fn(struct work_struct *work)
 static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
 {
 	int i=0;
-
+	
+	// ZZ: enable offline cores to avoid higher / achieve balanced cpu load on idle
 	if (hotplug_idle_flag == 1){
-    	    for (i = 1; i < num_possible_cpus(); i++) { 		// ZZ: enable offline cores to avoid higher cpu load on idle when cores are offline
+    	    for (i = 1; i < num_possible_cpus(); i++) { 		
     		if (!cpu_online(i))
     		cpu_up(i);
     	    }
@@ -2409,8 +2492,8 @@ static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
 	}
 
 #ifdef ENABLE_LEGACY_MODE
+	// ZZ: Legacy hotplugging
 	if (unlikely(dbs_tuners_ins.legacy_mode == true && num_possible_cpus() == 4)) {
-
 		if (num_online_cpus() < 2) {
 		    if (hotplug_thresholds[0][0] != 0 && cur_load > hotplug_thresholds[0][0] && skip_hotplug_flag == 0 && !cpu_online(1))
 			cpu_up(1);
@@ -2440,6 +2523,7 @@ static void __cpuinit hotplug_online_work_fn(struct work_struct *work)
 
 	} else {
 #endif
+	    // Yank: added frequency thresholds
 	    for (i = 1; i < num_possible_cpus(); i++) {
 		    if( !cpu_online(i)										&&
 			skip_hotplug_flag == 0									&&
@@ -2517,6 +2601,7 @@ static void powersave_early_suspend(struct early_suspend *handler)
   freq_step_awake = dbs_tuners_ins.freq_step;				// ZZ: save freq step
   freq_limit_awake = dbs_tuners_ins.freq_limit;				// ZZ: save freq limit
   fast_scaling_awake = dbs_tuners_ins.fast_scaling;			// ZZ: save scaling setting
+  disable_hotplug_awake = dbs_tuners_ins.disable_hotplug;		// ZZ: save hotplug switch state
 
   if (dbs_tuners_ins.hotplug_sleep != 0) {				// ZZ: if set to 0 do not touch hotplugging values
 	hotplug1_awake = dbs_tuners_ins.up_threshold_hotplug1;		// ZZ: save hotplug1 value for restore on awake
@@ -2530,7 +2615,6 @@ static void powersave_early_suspend(struct early_suspend *handler)
 	hotplug6_awake = dbs_tuners_ins.up_threshold_hotplug6;		// ZZ: save hotplug6 value for restore on awake
 	hotplug7_awake = dbs_tuners_ins.up_threshold_hotplug7;		// ZZ: save hotplug7 value for restore on awake
 #endif
-
   }
 
   sampling_rate_asleep = dbs_tuners_ins.sampling_rate_sleep_multiplier; // ZZ: save sleep multiplier
@@ -2540,6 +2624,7 @@ static void powersave_early_suspend(struct early_suspend *handler)
   freq_step_asleep = dbs_tuners_ins.freq_step_sleep;			// ZZ: save frequency step
   freq_limit_asleep = dbs_tuners_ins.freq_limit_sleep;			// ZZ: save frequency limit
   fast_scaling_asleep = dbs_tuners_ins.fast_scaling_sleep;		// ZZ: save fast scaling
+  disable_hotplug_asleep = dbs_tuners_ins.disable_hotplug_sleep;	// ZZ: save disable hotplug switch
   dbs_tuners_ins.sampling_rate *= sampling_rate_asleep;			// ZZ: set sampling rate
   dbs_tuners_ins.up_threshold = up_threshold_asleep;			// ZZ: set up threshold
   dbs_tuners_ins.down_threshold = down_threshold_asleep;		// ZZ: set down threshold
@@ -2547,6 +2632,14 @@ static void powersave_early_suspend(struct early_suspend *handler)
   dbs_tuners_ins.freq_step = freq_step_asleep;				// ZZ: set freqency step
   dbs_tuners_ins.freq_limit = freq_limit_asleep;			// ZZ: set freqency limit
   dbs_tuners_ins.fast_scaling = fast_scaling_asleep;			// ZZ: set fast scaling
+  dbs_tuners_ins.disable_hotplug = disable_hotplug_asleep;		// ZZ: set hotplug switch
+
+  if (dbs_tuners_ins.disable_hotplug_sleep) {				// ZZ: enable all cores at suspend if disable hotplug sleep is set
+      for (i = 1; i < num_possible_cpus(); i++) { 			
+      if (!cpu_online(i))
+      cpu_up(i);
+      }
+  }
 
   if (dbs_tuners_ins.fast_scaling > 4) {				// ZZ: set scaling mode
     scaling_mode_up   = dbs_tuners_ins.fast_scaling - 4;		// Yank : fast scaling up
@@ -2670,10 +2763,12 @@ static void powersave_late_resume(struct early_suspend *handler)
   skip_hotplug_flag = 1; 						// ZZ: same as above skip hotplugging to avoid deadlocks
   suspend_flag = 0; 							// ZZ: we are resuming so reset supend flag
 
-      for (i = 1; i < num_possible_cpus(); i++) { 			// ZZ: enable offline cores to avoid stuttering after resume if hotplugging limit was active
-      if (!cpu_online(i))
-      cpu_up(i);
-      }
+  if (!dbs_tuners_ins.disable_hotplug_sleep) {
+    for (i = 1; i < num_possible_cpus(); i++) { 			// ZZ: enable offline cores to avoid stuttering after resume if hotplugging limit was active
+	    if (!cpu_online(i))
+	    cpu_up(i);
+    }
+  }
 
   for (i = 0; i < 1000; i++);  						// ZZ: wait a few samples to be sure hotplugging is off (never be sure so this is dirty)
 
@@ -2717,6 +2812,7 @@ static void powersave_late_resume(struct early_suspend *handler)
   dbs_tuners_ins.freq_step = freq_step_awake;				// ZZ: restore previous settings
   dbs_tuners_ins.freq_limit = freq_limit_awake;				// ZZ: restore previous settings
   dbs_tuners_ins.fast_scaling = fast_scaling_awake;			// ZZ: restore previous settings
+  dbs_tuners_ins.disable_hotplug = disable_hotplug_awake;		// ZZ: restore previous settings
 
   if (dbs_tuners_ins.fast_scaling > 4) {				// ZZ: set scaling mode
     scaling_mode_up   = dbs_tuners_ins.fast_scaling - 4;		// Yank : fast scaling up
