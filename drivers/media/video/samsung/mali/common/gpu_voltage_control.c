@@ -38,6 +38,9 @@ typedef struct mali_dvfs_thresholdTag{
 	unsigned int upthreshold;
 }mali_dvfs_threshold_table;
 
+// Yank555.lu : Global voltage delta to be applied to voltage resets
+int gpu_voltage_delta;
+
 extern mali_dvfs_table mali_dvfs[MALI_DVFS_STEPS];
 extern mali_dvfs_threshold_table mali_dvfs_threshold[MALI_DVFS_STEPS];
 
@@ -107,7 +110,7 @@ static ssize_t mali_dvfs_table_update_store(struct device *dev, struct device_at
 	}
 
 	if (data == 1) {
-		// Yank555.lu : reupdate mali dvfs table
+		// Yank555.lu : update mali dvfs table
 		mali_dvfs_table_update();
 		return count;
 	}
@@ -117,6 +120,39 @@ static ssize_t mali_dvfs_table_update_store(struct device *dev, struct device_at
 }
 
 static DEVICE_ATTR(mali_dvfs_table_update, S_IWUGO, NULL, mali_dvfs_table_update_store);
+#endif
+
+#ifdef CONFIG_GPU_VOLTAGE_WRITE_CONTROL
+// Yank555.lu : add a global voltage delta to be applied to all automatic voltage resets
+static ssize_t gpu_voltage_delta_show(struct device *dev, struct device_attribute *attr, char *buf) {
+
+	return sprintf(buf, "%d\n", gpu_voltage_delta);
+
+}
+
+static ssize_t gpu_voltage_delta_store(struct device *dev, struct device_attribute *attr, const char *buf,
+									size_t count) {
+	int data;
+	unsigned int ret;
+
+	ret = sscanf(buf, "%d\n", &data);
+
+	if (!ret) {
+		return -EINVAL;
+	}
+
+	if (data >= -250000 && data <= 250000) {
+		gpu_voltage_delta = data;
+		// Yank555.lu : update mali dvfs table
+		mali_dvfs_table_update();
+		return count;
+	}
+
+	return -EINVAL;
+
+}
+
+static DEVICE_ATTR(gpu_voltage_delta, S_IRUGO | S_IWUGO, gpu_voltage_delta_show, gpu_voltage_delta_store);
 #endif
 
 // GPU voltage steps
@@ -188,6 +224,9 @@ static struct attribute *gpu_voltage_control_attributes[] = {
 	&dev_attr_gpu_voltage_2.attr,
 	&dev_attr_gpu_voltage_3.attr,
 	&dev_attr_gpu_voltage_4.attr,
+#ifdef CONFIG_GPU_VOLTAGE_WRITE_CONTROL
+	&dev_attr_gpu_voltage_delta.attr,
+#endif
 	NULL
 };
 
