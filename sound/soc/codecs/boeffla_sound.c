@@ -1,12 +1,13 @@
 /*
- * Author: andip71, 26.02.2013
+ * Author: andip71, 16.08.2013
  *
- * Version 1.6.0
+ * Version 1.6.2
  *
  * credits: Supercurio for ideas and partially code from his Voodoo
- * 	    sound implementation,
- *          Yank555 for great support on problem analysis,
+ * 	    	sound implementation,
+ *          Yank555 for great support on problem analysis and new ideas,
  *          Gokhanmoral for further modifications to the original code
+ * 			AndreiLux for his modified detection routines
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -21,7 +22,6 @@
 
 #include <sound/soc.h>
 #include <sound/core.h>
-#include <sound/jack.h>
 
 #include <linux/miscdevice.h>
 #include <linux/mfd/wm8994/core.h>
@@ -73,10 +73,8 @@ static unsigned int debug_register;		// current register to show in debug regist
 // internal state variables
 static bool is_call;			// is currently a call active?
 static bool is_headphone;		// is headphone connected?
-static bool is_socket;			// is something connected to the headphone socket?
-#ifdef CONFIG_FM_RADIO
+static bool is_speaker;			// is speaker active?
 static bool is_fmradio;			// is stock fm radio app active?
-#endif
 static bool is_eq;				// is an equalizer (headphone or speaker tuning) active?
 static bool is_eq_headphone;	// is equalizer for headphone or speaker currently?
 static bool is_mic_controlled;	// is microphone sensivity controlled by boeffla-sound or not?
@@ -96,12 +94,10 @@ static unsigned int wm8994_read(struct snd_soc_codec *codec, unsigned int reg);
 static int wm8994_write(struct snd_soc_codec *codec, unsigned int reg, unsigned int value);
 
 static bool debug(int level);
-static bool check_for_call(bool load_register, unsigned int val);
-static bool check_for_socket(unsigned int val);
+static bool check_for_call(void);
 static bool check_for_headphone(void);
-#ifdef CONFIG_FM_RADIO
+static bool check_for_speaker(void);
 static bool check_for_fmradio(void);
-#endif
 static void handler_headphone_detection(void);
 
 static void set_headphone(void);
@@ -181,55 +177,6 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int val)
 	switch (reg)
 	{
 
-		// call detection
-		case WM8994_AIF2_CONTROL_2:
-		{
-			if (is_call != check_for_call(false, val))
-			{
-				is_call = !is_call;
-
-				if (debug(DEBUG_NORMAL))
-					printk("Boeffla-sound: Call detection new status %d\n", is_call);
-
-				// switch equalizer (and all follow-up functionalities like gains, bands, satprevention etc.)
-				set_eq();
-
-				// switch mic level and mono downmix
-				set_mic_level();
-				set_mono_downmix();
-			}
-
-			break;
-		}
-
-		// socket connection/disconnection detection (incl. headphone un-plug)
-		// (see headphone detection below for plug-in)
-		case WM1811_JACKDET_CTRL:
-		{
-			if (check_for_socket(val))
-			{
-				is_socket = true;
-
-				if (debug(DEBUG_NORMAL))
-					printk("Boeffla-sound: Socket plugged-in\n");
-			}
-			else
-			{
-				is_socket = false;
-				is_headphone = false;
-
-				if (debug(DEBUG_NORMAL))
-					printk("Boeffla-sound: Socket un-plugged\n");
-
-				// Handler: switch equalizer (and all connected functions),
-				// mono downmix and set speaker volume (for privacy mode)
-				set_eq();
-				set_mono_downmix();
-				set_speaker();
-			}
-			break;
-		}
-
 		// left headphone volume
 		case WM8994_LEFT_OUTPUT_VOLUME:
 		{
@@ -258,6 +205,8 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int val)
 			break;
 		}
 
+// Do not touch dac direct at all when P4NOTE
+#ifndef CONFIG_MACH_P4NOTE
 		// dac_direct left channel
 		case WM8994_OUTPUT_MIXER_1:
 		{
@@ -271,6 +220,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int val)
 			newval = get_dac_direct_r(val);
 			break;
 		}
+#endif
 
 		// mono downmix
 		case WM8994_AIF1_DAC1_FILTERS_1:
@@ -323,14 +273,37 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int val)
 
 	}
 
-	// Headphone plug-in detection
-	// ( for un-plug detection see above, this is covered by checking a register)
-	if (is_socket && !is_headphone)
+	// call detection
+	if (is_call != check_for_call())
+	{
+		is_call = !is_call;
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: Call detection new status %d\n", is_call);
+
+		// switch equalizer (and all follow-up functionalities like gains, bands, satprevention etc.)
+		set_eq();
+
+		// switch mic level and mono downmix
+		set_mic_level();
+		set_mono_downmix();
+	}
+
+	// Headphone detection
+	if (is_headphone != check_for_headphone())
 	{
 		handler_headphone_detection();
 	}
 
-#ifdef CONFIG_FM_RADIO
+	// Speaker detection
+	if (is_speaker != check_for_speaker())
+	{
+		is_speaker = !is_speaker;
+
+		if (debug(DEBUG_NORMAL))
+			printk("Boeffla-sound: Speaker detection new status %d\n", is_speaker);
+	}
+	
 	// FM radio detection
 	// Important note: We need to absolutely make sure we do not do this detection if one of the
 	// two output mixers are called in this hook (as they can potentially be modified again in the
@@ -351,12 +324,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int val)
 	if (debug(DEBUG_VERBOSE))
 		printk("Boeffla-sound: write hook %d -> %d (Orig:%d), c:%d, h:%d, r:%d\n",
 				reg, newval, val, is_call, is_headphone, is_fmradio);
-#else
-	// print debug info
-	if (debug(DEBUG_VERBOSE))
-		printk("Boeffla-sound: write hook %d -> %d (Orig:%d), c:%d, h:%d\n",
-				reg, newval, val, is_call, is_headphone);
-#endif
+
 	return newval;
 }
 
@@ -492,110 +460,64 @@ static unsigned int wm8994_read(struct snd_soc_codec *codec,
 // Internal helper functions
 /*****************************************/
 
-static bool check_for_call(bool load_register, unsigned int val)
-{
-	// if a check outside the write hook should be performed, the current register
-	// value needs to be loaded first
-	if (load_register)
-	{
-		val = wm8994_read(codec, WM8994_AIF2_CONTROL_2);
-	}
-
-	// check via register WM8994_AIF2DACR if currently call active
-	if (!(val & WM8994_AIF2DACR_SRC_MASK))
-		return true;
-
-	return false;
-}
-
-
-static bool check_for_socket(unsigned int val)
-{
-	// check via register WM1811_JACKDET if something is plugged in currently
-	if (val & WM1811_JACKDET_DB_MASK)
-		return false;
-
-	return true;
-}
-
-
-static bool check_for_headphone(void)
-{
-	// check status of micdet zero jacket to find out whether headphone
-	// or headset is currently connected
-	// Note: This always shows status delayed after something has been plugged in or
-	// unplugged !!!
-	if( wm8994->micdet[0].jack != NULL )
-	{
-		if ((wm8994->micdet[0].jack->status & SND_JACK_HEADPHONE) ||
-		(wm8994->micdet[0].jack->status & SND_JACK_HEADSET))
-			return true;
-	}
-
-	return false;
-}
-
-#ifdef CONFIG_FM_RADIO
-static bool check_for_fmradio(void)
+bool check_for_dapm(enum snd_soc_dapm_type dapm_type, char* widget_name)
 {
 	struct snd_soc_dapm_widget *w;
 
-	// loop through widget list to find widget for FM radio and check
-	// power state of it
-	list_for_each_entry(w, &codec->card->widgets, list)
+	/* Iterate widget list and find power mode of given widget per its name */
+	list_for_each_entry(w, &codec->card->widgets, list) 
 	{
 		if (w->dapm != &codec->dapm)
 			continue;
 
-		switch (w->id)
-		{
-			case snd_soc_dapm_line:
-				if (w->name)
-				{
-					if(strstr(w->name,"FM In") != 0)
-					{
-						if((w->power) != 0)
-							return true;
-						else
-							return false;
-					}
-				}
-				break;
-			case snd_soc_dapm_mic:
-			case snd_soc_dapm_hp:
-			case snd_soc_dapm_spk:
-			case snd_soc_dapm_micbias:
-			case snd_soc_dapm_dac:
-			case snd_soc_dapm_adc:
-			case snd_soc_dapm_pga:
-			case snd_soc_dapm_out_drv:
-			case snd_soc_dapm_mixer:
-			case snd_soc_dapm_mixer_named_ctl:
-			case snd_soc_dapm_supply:
-				break;
-			default:
-				break;
-		}
+		/* DAPM types in include/sound/soc-dapm.h */
+		if (w->id == dapm_type && !strcmp(w->name, widget_name))
+			return w->power;
 	}
 
 	return false;
 }
+
+bool check_for_fmradio(void)
+{
+// if no fm radio built in, always set to false
+#ifdef CONFIG_FM_RADIO
+	return check_for_dapm(snd_soc_dapm_line, "FM In");
+#else
+	return false;
 #endif
+}
+
+bool check_for_call(void)
+{
+	return check_for_dapm(snd_soc_dapm_spk, "RCV");
+}
+
+
+bool check_for_speaker(void)
+{
+	return check_for_dapm(snd_soc_dapm_spk, "SPK");
+}
+
+
+bool check_for_headphone(void)
+{
+	return check_for_dapm(snd_soc_dapm_hp, "HP");
+}
+
+
 
 static void handler_headphone_detection(void)
 {
-	if (check_for_headphone())
-	{
-		is_headphone = true;
+	is_headphone = check_for_headphone();
 
-		if (debug(DEBUG_NORMAL))
-			printk("Boeffla-sound: Headphone or headset found\n");
+	if (debug(DEBUG_NORMAL))
+		printk("Boeffla-sound: Headphone new status %d\n", is_headphone);
 
-		// Handler: switch equalizer and mono downmix, set speaker volume (for privacy mode)
-		set_eq();
-		set_mono_downmix();
-		set_speaker();
-	}
+	// Handler: switch equalizer and mono downmix, set speaker volume (for privacy mode)
+	set_eq();
+	set_mono_downmix();
+	set_speaker();
 }
 
 
@@ -940,11 +862,11 @@ static void set_eq_satprevention(void)
 	{
 		// check whether saturation prevention is switched on or off based on
 		// real status of EQ and configured EQ mode and speaker tuning
-		if (is_eq && is_eq_headphone)
+		if (is_eq && is_eq_headphone && eq == EQ_NORMAL)
 		{
 			printk("Boeffla-sound: set_eq_satprevention to on (headphone)\n");
 		}
-		else if (is_eq && !is_eq_headphone)
+		else if (is_eq && !is_eq_headphone && eq == EQ_NORMAL)
 		{
 			printk("Boeffla-sound: set_eq_satprevention to on (speaker)\n");
 		}
@@ -1066,8 +988,8 @@ static void set_speaker_boost(void)
 		// enable speaker boost by setting the boost volume
 		val = wm8994_read(codec, WM8994_CLASSD);
 		val = (val & ~WM8994_SPKOUTL_BOOST_MASK) & ~WM8994_SPKOUTR_BOOST_MASK;
-		val = val | (SPEAKER_BOOST_TUNED << WM8994_SPKOUTL_BOOST_WIDTH);
-		val = val | (SPEAKER_BOOST_TUNED << WM8994_SPKOUTR_BOOST_WIDTH);
+		val = val | (SPEAKER_BOOST_TUNED << WM8994_SPKOUTL_BOOST_SHIFT);
+		val = val | (SPEAKER_BOOST_TUNED << WM8994_SPKOUTR_BOOST_SHIFT);
 		wm8994_write(codec, WM8994_CLASSD, val);
 
 		// print debug info
@@ -1079,8 +1001,8 @@ static void set_speaker_boost(void)
 		// disable speaker boost by resetting to default values
 		val = wm8994_read(codec, WM8994_CLASSD);
 		val = (val & ~WM8994_SPKOUTL_BOOST_MASK) & ~WM8994_SPKOUTR_BOOST_MASK;
-		val = val | (SPEAKER_BOOST_DEFAULT << WM8994_SPKOUTL_BOOST_WIDTH);
-		val = val | (SPEAKER_BOOST_DEFAULT << WM8994_SPKOUTR_BOOST_WIDTH);
+		val = val | (SPEAKER_BOOST_DEFAULT << WM8994_SPKOUTL_BOOST_SHIFT);
+		val = val | (SPEAKER_BOOST_DEFAULT << WM8994_SPKOUTR_BOOST_SHIFT);
 		wm8994_write(codec, WM8994_CLASSD, val);
 
 		// print debug info
@@ -1094,6 +1016,9 @@ static void set_speaker_boost(void)
 
 static void set_dac_direct(void)
 {
+
+// do not touch dac direct at all if P4NOTE
+#ifndef CONFIG_MACH_P4NOTE
 	unsigned int val;
 
 	// get current values for output mixers 1 and 2 (l + r) from audio hub
@@ -1115,18 +1040,14 @@ static void set_dac_direct(void)
 		else
 			printk("Boeffla-sound: set_dac_direct off\n");
 	}
+#endif
 
 }
 
 static unsigned int get_dac_direct_l(unsigned int val)
 {
-#ifdef CONFIG_FM_RADIO
 	// dac direct is only enabled if fm radio is not active
 	if ((dac_direct == ON) && (!is_fmradio))
-#else
-	// dac direct 
-	if (dac_direct == ON)
-#endif
 	{
 		// enable dac_direct: bypass for both channels, mute output mixer
 		return((val & ~WM8994_DAC1L_TO_MIXOUTL) | WM8994_DAC1L_TO_HPOUT1L);
@@ -1138,13 +1059,8 @@ static unsigned int get_dac_direct_l(unsigned int val)
 
 static unsigned int get_dac_direct_r(unsigned int val)
 {
-#ifdef CONFIG_FM_RADIO
 	// dac direct is only enabled if fm radio is not active
 	if ((dac_direct == ON) && (!is_fmradio))
-#else
-	// dac direct 
-	if (dac_direct == ON)
-#endif
 	{
 		// enable dac_direct: bypass for both channels, mute output mixer
 		return((val & ~WM8994_DAC1R_TO_MIXOUTR) | WM8994_DAC1R_TO_HPOUT1R);
@@ -1254,7 +1170,12 @@ static void set_mono_downmix(void)
 {
 	unsigned int val;
 
+// P4Note has stereo speakers, so also allow mono without headphones attached
+#ifndef CONFIG_MACH_P4NOTE 
 	if (!is_call && is_headphone && (mono_downmix == ON))
+#else
+	if (!is_call  && (mono_downmix == ON))
+#endif  
 	{
 		if (!is_mono_downmix)
 		{
@@ -1417,7 +1338,7 @@ static void initialize_global_variables(void)
 	dac_oversampling = OFF;
 
 	fll_tuning = OFF;
-	
+
 	stereo_expansion_gain = STEREO_EXPANSION_GAIN_OFF;
 
 	mono_downmix = OFF;
@@ -1431,11 +1352,10 @@ static void initialize_global_variables(void)
 	debug_register = 0;
 
 	is_call = false;
-	is_socket = false;
+	is_speaker = false;
 	is_headphone = false;
-#ifdef CONFIG_FM_RADIO
 	is_fmradio = false;
-#endif
+
 	is_eq = false;
 	is_eq_headphone = false;
 	is_mic_controlled=false;
@@ -1449,8 +1369,6 @@ static void initialize_global_variables(void)
 
 static void reset_boeffla_sound(void)
 {
-	unsigned int val;
-
 	// print debug info
 	if (debug(DEBUG_NORMAL))
 		printk("Boeffla-sound: reset_boeffla_sound started\n");
@@ -1486,15 +1404,12 @@ static void reset_boeffla_sound(void)
 	// reset mic level
 	set_mic_level();
 
-	// initialize jacket, headphone, call and fm radio status
-	val = wm8994_read(codec, WM1811_JACKDET_CTRL);
-	is_socket = check_for_socket(val);
+	// initialize headphone, call and fm radio status
 
-	is_call = check_for_call(true, 0);
+	is_call = check_for_call();
 	handler_headphone_detection();
-#ifdef CONFIG_FM_RADIO
+
 	is_fmradio = check_for_fmradio();
-#endif
 
 	// print debug info
 	if (debug(DEBUG_NORMAL))
@@ -1737,8 +1652,8 @@ static ssize_t eq_store(struct device *dev, struct device_attribute *attr,
 	if (((val >= EQ_OFF) && (val <= EQ_NOSATPREVENT)) && (val != eq))
 	{
 		eq = val;
-		set_eq();
 	}
+	set_eq();
 
 	// print debug info
 	if (debug(DEBUG_NORMAL))
@@ -1922,7 +1837,13 @@ static ssize_t dac_direct_show(struct device *dev, struct device_attribute *attr
 	if (!boeffla_sound)
 		return 0;
 
+// For P4NOTE, dac direct always needs to be enabled, so the setting is
+// returned as blank = setting not active
+#ifndef CONFIG_MACH_P4NOTE
 	return sprintf(buf, "DAC direct: %d\n", dac_direct);
+#else
+	return 0;
+#endif
 }
 
 
@@ -2379,15 +2300,10 @@ static ssize_t debug_info_show(struct device *dev, struct device_attribute *attr
 	val = wm8994_read(codec, WM8994_AIF1_DAC1_FILTERS_2);
 	sprintf(buf+strlen(buf), "WM8994_AIF1_DAC1_FILTERS_2: %d\n", val);
 
-#ifdef CONFIG_FM_RADIO
 	// add the current states of call, headphone and fmradio
-	sprintf(buf+strlen(buf), "is_call:%d is_socket: %d is_headphone:%d is_fmradio:%d\n",
-				is_call, is_socket, is_headphone, is_fmradio);
-#else
-	// add the current states of call, headphone
-	sprintf(buf+strlen(buf), "is_call:%d is_socket: %d is_headphone:%d\n",
-				is_call, is_socket, is_headphone);
-#endif
+	sprintf(buf+strlen(buf), "is_call:%d is_speaker: %d is_headphone:%d is_fmradio:%d\n",
+				is_call, is_speaker, is_headphone, is_fmradio);
+
 	// add the current states of internal headphone handling and mono downmix
 	sprintf(buf+strlen(buf), "is_eq:%d is_eq_headphone: %d is_mono_downmix: %d\n",
 				is_eq, is_eq_headphone, is_mono_downmix);
@@ -2612,4 +2528,3 @@ static void boeffla_sound_exit(void)
 
 module_init(boeffla_sound_init);
 module_exit(boeffla_sound_exit);
-
