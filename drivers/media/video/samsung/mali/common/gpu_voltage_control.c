@@ -132,23 +132,21 @@ static ssize_t gpu_voltage_delta_show(struct device *dev, struct device_attribut
 
 static ssize_t gpu_voltage_delta_store(struct device *dev, struct device_attribute *attr, const char *buf,
 									size_t count) {
-	int data;
+	int input;
 	unsigned int ret;
 
-	ret = sscanf(buf, "%d\n", &data);
+	ret = sscanf(buf, "%d\n", &input);
 
-	if (!ret) {
+	if (!ret)
 		return -EINVAL;
-	}
 
-	if (data >= -250000 && data <= 250000) {
-		gpu_voltage_delta = data;
-		// Yank555.lu : update mali dvfs table
-		mali_dvfs_table_update();
-		return count;
-	}
+	if (input < MIN_VOLTAGE_DELTA_GPU || input > MAX_VOLTAGE_DELTA_GPU || input % VOLTAGE_STEP != 0)
+		return -EINVAL;
 
-	return -EINVAL;
+	gpu_voltage_delta = input;
+	// Yank555.lu : update mali dvfs table
+	mali_dvfs_table_update();
+	return count;
 
 }
 
@@ -175,7 +173,7 @@ static ssize_t store_gpu_voltage_##step									\
 	if (sscanf(buf, "%u", &input) != 1)								\
 		return -EINVAL;										\
 													\
-	if (input < MIN_VOLTAGE_GPU || input > MAX_VOLTAGE_GPU)						\
+	if (input < MIN_VOLTAGE_GPU || input > MAX_VOLTAGE_GPU || input % VOLTAGE_STEP != 0)		\
 		return -EINVAL;										\
 													\
 	mali_dvfs[step].vol = input;									\
