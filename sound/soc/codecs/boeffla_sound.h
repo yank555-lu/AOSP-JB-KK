@@ -1,7 +1,9 @@
 /*
  * Author: andip71, 16.08.2013
+ * 
+ * Modifications: Yank555.lu 18.08.2013
  *
- * Version 1.6.2
+ * Version 1.6.2b
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -29,7 +31,7 @@ unsigned int Boeffla_sound_hook_wm8994_write(unsigned int reg, unsigned int valu
 
 // Boeffla sound general
 #define BOEFFLA_SOUND_DEFAULT 	0
-#define BOEFFLA_SOUND_VERSION 	"1.6.2"
+#define BOEFFLA_SOUND_VERSION 	"1.6.2a"
 
 // Debug mode
 #define DEBUG_DEFAULT 		1
