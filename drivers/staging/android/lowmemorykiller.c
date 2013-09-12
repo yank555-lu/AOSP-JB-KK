@@ -47,15 +47,6 @@
 #define LOWMEM_DEATHPENDING_DEPTH 3
 #endif
 
-// Yank555.lu : Make counting reserved free memory run-time switchable
-// 
-// Helps a lot with multi-tasking, but generates crashes on heavy games if not counted
-
-#define COUNT_RESERVED_FREE_MEMORY 0
-#define DONT_COUNT_RESERVED_FREE_MEMORY 1
-
-int lmk_count_reserved_free_memory = DONT_COUNT_RESERVED_FREE_MEMORY;
-
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
 	0,
@@ -162,19 +153,11 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	int selected_oom_adj;
 #endif
 	int array_size = ARRAY_SIZE(lowmem_adj);
-	int other_free;
 #ifndef CONFIG_DMA_CMA
-	if (lmk_count_reserved_free_memory == COUNT_RESERVED_FREE_MEMORY)
-		other_free = global_page_state(NR_FREE_PAGES);
-	else
-		other_free = global_page_state(NR_FREE_PAGES) - totalreserve_pages;
+	int other_free = global_page_state(NR_FREE_PAGES);
 #else
-	if (lmk_count_reserved_free_memory == COUNT_RESERVED_FREE_MEMORY)
-		other_free = global_page_state(NR_FREE_PAGES) -
-						global_page_state(NR_FREE_CMA_PAGES);
-	else
-		other_free = global_page_state(NR_FREE_PAGES) -
-						global_page_state(NR_FREE_CMA_PAGES) - totalreserve_pages;
+	int other_free = global_page_state(NR_FREE_PAGES) -
+					global_page_state(NR_FREE_CMA_PAGES);
 #endif
 	int other_file = global_page_state(NR_FILE_PAGES) -
 						global_page_state(NR_SHMEM);
@@ -530,49 +513,6 @@ static DEVICE_ATTR(lmk_state, 0664, lmk_state_show, lmk_state_store);
 
 #endif /* CONFIG_ZRAM_FOR_ANDROID */
 
-// Yank555.lu : Make counting reserved free memory run-time switchable
-// 
-// Helps a lot with multi-tasking, but generates crashes on heavy games if not counted
-
-static ssize_t lmk_count_reserved_free_memory_show(struct device *dev,
-			      struct device_attribute *attr, char *buf)
-{
-
-	switch (lmk_count_reserved_free_memory) {
-
-		case COUNT_RESERVED_FREE_MEMORY:	return sprintf(buf, "Reserved free memory counted (%d)\n", lmk_count_reserved_free_memory);
-
-		case DONT_COUNT_RESERVED_FREE_MEMORY:	return sprintf(buf, "Reserved free memory not counted (%d)\n", lmk_count_reserved_free_memory);
-
-		default:                                return sprintf(buf, "something went wrong (%d)\n", lmk_count_reserved_free_memory);
-
-	}
-
-}
-
-static ssize_t lmk_count_reserved_free_memory_store(struct device *dev,
-			       struct device_attribute *attr,
-			       const char *buf, size_t size)
-{
-	int input;
-
-	if (! sscanf(buf, "%d", &input))
-		return -EINVAL;
-
-	switch (lmk_count_reserved_free_memory) {
-
-		case COUNT_RESERVED_FREE_MEMORY:
-		case DONT_COUNT_RESERVED_FREE_MEMORY:	lmk_count_reserved_free_memory = input;
-							return size;
-
-		default:                                return -EINVAL;
-
-	}
-
-}
-
-static DEVICE_ATTR(lmk_count_reserved_free_memory, 0664, lmk_count_reserved_free_memory_show, lmk_count_reserved_free_memory_store);
-
 static int __init lowmem_init(void)
 {
 #ifdef CONFIG_ZRAM_FOR_ANDROID
@@ -605,10 +545,6 @@ static int __init lowmem_init(void)
 		printk(KERN_ERR "Failed to create device file(%s)!\n",
 		       dev_attr_lmk_state.attr.name);
 #endif /* CONFIG_ZRAM_FOR_ANDROID */
-
-	if (device_create_file(lmk_dev, &dev_attr_lmk_count_reserved_free_memory) < 0)
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
-		       dev_attr_lmk_count_reserved_free_memory.attr.name);
 
 	return 0;
 }
@@ -715,3 +651,4 @@ module_init(lowmem_init);
 module_exit(lowmem_exit);
 
 MODULE_LICENSE("GPL");
+
