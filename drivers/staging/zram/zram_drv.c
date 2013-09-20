@@ -897,8 +897,8 @@ static int __init zram_init(void)
 	}
 
 	if (!zram_num_devices) {
-		pr_info("num_devices not specified. Using default: 1\n");
-		zram_num_devices = 1;
+		pr_info("num_devices not specified. Using default: 4\n");
+		zram_num_devices = 4; // Yank555.lu : Default to 4 for those wanting to use up to 4 concurrent zram swap devices
 	}
 
 	/* Allocate the device array and initialize each one */
