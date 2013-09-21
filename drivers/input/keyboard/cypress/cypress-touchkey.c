@@ -96,7 +96,7 @@ int touch_led_timeout = 3; // timeout for the touchkey backlight in secs
 int touch_led_disabled = 0; // 1= force disable the touchkey backlight
 int touch_led_on_screen_touch	= TOUCHKEY_LED_ENABLED;	// Yank555.lu : Light up h/w key on touchscreen touch by default
 int touchkey_pressed		= TOUCHKEY_HW_TIMEDOUT;	// Yank555.lu : Consider h/w keys as not pressed on start
-int touch_led_handling		= TOUCHKEY_LED_ROM;	// Yank555.lu : Consider h/w keys handled by ROM (newer CM)
+int touch_led_handling		= TOUCHKEY_LED_KERNEL;	// Yank555.lu : Consider h/w keys handled by kernel (older CM)
 
 #if defined(TK_HAS_AUTOCAL)
 static u16 raw_data0;
