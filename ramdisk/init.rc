@@ -264,7 +264,10 @@ on post-fs-data
     # Set indication (checked by vold) that we have finished this action
     #setprop vold.post_fs_data_done 1
 
-# Include superuser daemon support (for SlimBean)
+    # Include extra init file with omni extras
+    import /init.omni.rc
+
+    # Include superuser daemon support (for SlimBean, Temasek, CM11)
     import /init.superuser.rc
 
 on boot
