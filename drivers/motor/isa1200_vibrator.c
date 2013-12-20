@@ -307,7 +307,7 @@ ssize_t pwm_val_store(struct device *dev,
 
       return size;
 }
-static DEVICE_ATTR(pwm_val, S_IRUGO | S_IWUSR,
+static DEVICE_ATTR(pwm_val, S_IRUGO | S_IWUGO,
     pwm_val_show, pwm_val_store);
 
 static int create_vibrator_sysfs(void)
