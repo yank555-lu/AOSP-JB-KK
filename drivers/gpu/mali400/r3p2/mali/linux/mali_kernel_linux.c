@@ -96,8 +96,6 @@ MODULE_PARM_DESC(mali_max_pp_cores_group_2, "Limit the number of PP cores to use
 #include "mali_user_settings_db.h"
 EXPORT_SYMBOL(mali_set_user_setting);
 EXPORT_SYMBOL(mali_get_user_setting);
-<<<<<<< HEAD:drivers/media/video/samsung/mali/linux/mali_kernel_linux.c
-=======
 
 static char mali_dev_name[] = "mali"; /* should be const, but the functions we call requires non-cost */
 
@@ -121,7 +119,6 @@ static int mali_mmap(struct file * filp, struct vm_area_struct * vma);
 
 static int mali_probe(struct platform_device *pdev);
 static int mali_remove(struct platform_device *pdev);
->>>>>>> 74bcc02... mali: bulk import of r3p2-01rel3 drivers from i9300-update12:drivers/gpu/mali400/r3p2/mali/linux/mali_kernel_linux.c
 
 static int mali_driver_suspend_scheduler(struct device *dev);
 static int mali_driver_resume_scheduler(struct device *dev);

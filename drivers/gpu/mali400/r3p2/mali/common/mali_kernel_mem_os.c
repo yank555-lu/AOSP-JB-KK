@@ -243,18 +243,11 @@ static void os_allocator_release(void * ctx, void * handle)
 
 static mali_physical_memory_allocation_result os_allocator_allocate_page_table_block(void * ctx, mali_page_table_block * block)
 {
-<<<<<<< HEAD:drivers/media/video/samsung/mali/common/mali_kernel_mem_os.c
-#ifdef CONFIG_CPU_EXYNOS4210
-	int allocation_order = 6; /* _MALI_OSK_CPU_PAGE_SIZE << 6 */
-#else
-	int allocation_order = 11; /* _MALI_OSK_CPU_PAGE_SIZE << 11 */
-=======
 /* MALI_SEC 6->10 */
 #ifndef CONFIG_FORCE_MAX_ZONEORDER
 	int allocation_order = 10;
 #else
 	int allocation_order = CONFIG_FORCE_MAX_ZONEORDER - 1;
->>>>>>> 74bcc02... mali: bulk import of r3p2-01rel3 drivers from i9300-update12:drivers/gpu/mali400/r3p2/mali/common/mali_kernel_mem_os.c
 #endif
 	void *virt = NULL;
 	u32 size = _MALI_OSK_CPU_PAGE_SIZE << allocation_order;
