@@ -42,7 +42,7 @@ extern int mdnie_preset;
 static ssize_t mdnie_preset_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	// return value of current preset
-	return sprintf(buf, "MDNIE preset: %d", mdnie_preset);
+	return sprintf(buf, "MDNIE preset: %d\n", mdnie_preset);
 }
 
 
@@ -70,9 +70,9 @@ static ssize_t mdnie_preset_store(struct device *dev, struct device_attribute *a
 
 		// write debug info
 		if (mdnie_preset == 0)
-			printk("Boeffla-kernel: mdnie preset set to original\n");
+			printk("MDNIE-PRESET: mdnie preset set to original\n");
 		else
-			printk("Boeffla-kernel: mdnie preset set to Hardcore speedmod\n");
+			printk("MDNIE-PRESET: mdnie preset set to Hardcore speedmod\n");
 	}
 
 	return count;
@@ -115,12 +115,12 @@ static int mdnie_preset_init(void)
 	misc_register(&mdnie_preset_control_device);
 	if (sysfs_create_group(&mdnie_preset_control_device.this_device->kobj,
 				&mdnie_preset_control_group) < 0) {
-		printk("Boeffla-kernel: failed to create sys fs object.\n");
+		printk("MDNIE-PRESET: failed to create sys fs object.\n");
 		return 0;
 	}
 
 	// Print debug info
-	printk("Boeffla-kernel: mdnie control device started\n");
+	printk("MDNIE-PRESET: mdnie control device started\n");
 
 	return 0;
 }
@@ -133,7 +133,7 @@ static void mdnie_preset_exit(void)
                            &mdnie_preset_control_group);
 
 	// Print debug info
-	printk("Boeffla-kernel: mdnie control device stopped\n");
+	printk("MDNIE-PRESET: mdnie control device stopped\n");
 }
 
 
