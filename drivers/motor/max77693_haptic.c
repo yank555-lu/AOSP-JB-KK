@@ -301,6 +301,10 @@ ssize_t pwm_val_store(struct device *dev,
 static DEVICE_ATTR(pwm_val, S_IRUGO | S_IWUGO,
 		pwm_val_show, pwm_val_store);
 
+// Yank555.lu : Add CM's stupid alternative location
+static DEVICE_ATTR(pwm_value, S_IRUGO | S_IWUSR,
+		pwm_val_show, pwm_val_store);
+
 static int create_vibrator_sysfs(void)
 {
 	int ret;
@@ -381,7 +385,7 @@ static int max77693_haptic_probe(struct platform_device *pdev)
 	hap_data->tout_dev.get_time = haptic_get_time;
 	hap_data->tout_dev.enable = haptic_enable;
 
-    create_vibrator_sysfs();
+	create_vibrator_sysfs();
 
 #ifdef CONFIG_ANDROID_TIMED_OUTPUT
 	error = timed_output_dev_register(&hap_data->tout_dev);
@@ -392,6 +396,14 @@ static int max77693_haptic_probe(struct platform_device *pdev)
 	}
 #endif
 	pr_err("[VIB] timed_output device is registrated\n");
+
+	// Yank555.lu : Add CM's stupid alternative location
+	/* User controllable pwm level */
+	error = device_create_file(hap_data->tout_dev.dev, &dev_attr_pwm_value);
+	if (error < 0) {
+		pr_err("[VIB] create sysfs fail: pwm_value\n");
+	}
+
 	pr_debug("[VIB] -- %s\n", __func__);
 
 	return error;
