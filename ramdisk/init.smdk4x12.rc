@@ -30,9 +30,6 @@ on init
     mkdir /tombstones
     symlink /efs /factory
 
-# ko files for FM Radio
-    insmod /system/lib/modules/Si4709_driver.ko
-
 on fs
     mkdir /preload
     mount_all /fstab.smdk4x12
@@ -67,14 +64,6 @@ on post-fs-data
     chmod 0775 /data/misc/radio
     mkdir /efs/imei 0775 radio system
 
-# icd
-    exec icd_check
-    chown system system /dev/icd
-    chmod 0644 /dev/icd
-    write /dev/icdr 0
-    chown system system /dev/icdr
-    chmod 0644 /dev/icdr
-    chown system system /dev/tzic
 
 # HDCP 2.x
     mkdir /data/system/hdcp2 0775 system system
@@ -448,9 +437,12 @@ service fuse_usbdisk0 /system/bin/sdcard -u 1023 -g 1023 /mnt/media_rw/usbdisk0 
     disabled
 
 service p2p_supplicant /system/bin/wpa_supplicant \
-    -iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf -N \
+    -iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf \
+    -I/system/etc/wifi/wpa_supplicant.conf \
+    -O/data/misc/wifi/sockets -N \
     -ip2p0 -Dnl80211 -c/data/misc/wifi/p2p_supplicant.conf -e/data/misc/wifi/entropy.bin \
-    -puse_p2p_group_interface=1 -O/data/misc/wifi/sockets -g@android:wpa_wlan0
+    -puse_p2p_group_interface=1 \
+    -g@android:wpa_wlan0
     #   we will start as root and wpa_supplicant will switch to user wifi
     #   after setting up the capabilities required for WEXT
     #   user wifi
@@ -462,7 +454,10 @@ service p2p_supplicant /system/bin/wpa_supplicant \
 
 service wpa_supplicant /system/bin/wpa_supplicant \
     -Dnl80211 -iwlan0 -e/data/misc/wifi/entropy.bin \
-    -c/data/misc/wifi/wpa_supplicant.conf -O/data/misc/wifi/sockets -g@android:wpa_wlan0
+    -c/data/misc/wifi/wpa_supplicant.conf \
+    -I/system/etc/wifi/wpa_supplicant.conf \
+    -O/data/misc/wifi/sockets \
+    -g@android:wpa_wlan0
     #   we will start as root and wpa_supplicant will switch to user wifi
     #   after setting up the capabilities required for WEXT
     #   user wifi
