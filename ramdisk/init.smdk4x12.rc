@@ -502,7 +502,7 @@ service macloader /system/bin/macloader
     oneshot
 
 # Workaround for broken incall audio
-service bootsnd /sbin/tinyplay /sbin/silence.wav -D 0 -d 0 -p 880
+service bootsnd /system/bin/tinyplay /system/etc/sound/silence.wav -D 0 -d 0 -p 880
     class late_start
     user root
     group audio
