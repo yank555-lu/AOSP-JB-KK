@@ -656,6 +656,45 @@ fail2:
 	return error;
 }
 
+#ifdef CONFIG_SENSORS_HALL
+static void flip_cover_work(struct work_struct *work)
+{  
+	struct gpio_keys_drvdata *ddata =
+		container_of(work, struct gpio_keys_drvdata,
+				flip_cover_dwork.work);
+
+	ddata->flip_cover = gpio_get_value(ddata->gpio_flip_cover);
+
+	printk(KERN_DEBUG "[keys] %s : %d\n",
+		__func__, ddata->flip_cover);
+
+ /*       input_report_switch(ddata->input, SW_FLIP, ddata->flip_cover);
+	input_sync(ddata->input);*/
+	
+	flip_cover_open = ddata->flip_cover;
+	
+	if(!ts_powered_on && !ddata->flip_cover){
+	  printk("[keys] screen already off\n");
+        }else if(ts_powered_on && ddata->flip_cover){
+          printk("[keys] screen already on\n");
+	}else{
+          input_report_key(ddata->input, KEY_POWER, 1);
+ 	  input_sync(ddata->input);
+          input_report_key(ddata->input, KEY_POWER, 0);
+	  input_sync(ddata->input);
+	}
+}
+
+static irqreturn_t flip_cover_detect(int irq, void *dev_id)
+{
+	struct gpio_keys_drvdata *ddata = dev_id;
+
+	cancel_delayed_work_sync(&ddata->flip_cover_dwork);
+	schedule_delayed_work(&ddata->flip_cover_dwork, HZ / 20);
+	return IRQ_HANDLED;
+}
+#endif
+
 static int gpio_keys_open(struct input_dev *input)
 {
 	struct gpio_keys_drvdata *ddata = input_get_drvdata(input);
