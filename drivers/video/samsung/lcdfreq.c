@@ -363,26 +363,6 @@ static int lcdfreq_lock_free(struct device *dev)
 
 	return ret;
 }
-#ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
-#include <linux/cpufreq.h>
-struct device *ddev;
-atomic_t *usagep;
-
-int _lcdfreq_lock(int lock)
-{
-	int ext_lock;
-	if(ddev != NULL) {
-		ext_lock = atomic_read(usagep);
-		if(!!lock && !ext_lock) {
-			return lcdfreq_lock(ddev, LIMIT);
-		} else if(!!ext_lock) {
-			return lcdfreq_lock_free(ddev);
-		}
-	}
-	
-	return -EINVAL;
-}
-#endif
 
 static ssize_t level_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -717,11 +697,6 @@ static int lcdfreq_probe(struct platform_device *pdev)
 
 	info->ielcd_reg = ioremap(IELCD_REG_BASE, IELCD_MAP_SIZE);
 	info->enable = true;
-
-#ifdef CONFIG_CPU_FREQ_LCD_FREQ_DFS
-	ddev = info->dev;
-	usagep = &info->usage;
-#endif
 
 #ifdef CONFIG_LCD_FREQ_SWITCH_ACCOUNTING
 	init_accounting();
